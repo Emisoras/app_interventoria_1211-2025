@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
 
     // This is to fix a bug in genkit that causes a build error in Vercel
     config.module.rules.push({
-      test: /node_modules\/@genkit-ai\/core\/lib\/tracing\.js$/,
+      test: /node_modules\/(?:@genkit-ai|genkit)\/.*\.js$/,
       loader: 'string-replace-loader',
       options: {
         search: `require(plugin.requirePath(name))`,
