@@ -8,7 +8,9 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { SuspenseWrapper } from '@/components/suspense-wrapper';
+
 
 export default function ViabilidadEducativaPage() {
   const router = useRouter();
@@ -69,11 +71,13 @@ export default function ViabilidadEducativaPage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <ChecklistForm 
-            isViewer={isViewer}
-            checklistType="viabilidad-educativa"
-            formTitle="CHECK DE ESTUDIO DE CAMPO PARA INSTITUCIONES EDUCATIVAS"
-        />
+        <SuspenseWrapper>
+            <ChecklistForm 
+                isViewer={isViewer}
+                checklistType="viabilidad-educativa"
+                formTitle="CHECK DE ESTUDIO DE CAMPO PARA INSTITUCIONES EDUCATIVAS"
+            />
+        </SuspenseWrapper>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
         <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>

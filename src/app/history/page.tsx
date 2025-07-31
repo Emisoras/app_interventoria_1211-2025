@@ -15,6 +15,8 @@ import { ArrowLeft, Edit, Loader2, LogOut, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
+import { SuspenseWrapper } from '@/components/suspense-wrapper';
+
 
 type ChecklistSummary = {
   _id: string;
@@ -26,7 +28,7 @@ type ChecklistSummary = {
   items: any[];
 };
 
-export default function HistoryPage() {
+function HistoryPageContent() {
   const { toast } = useToast();
   const router = useRouter();
   const [checklists, setChecklists] = React.useState<ChecklistSummary[]>([]);
@@ -78,17 +80,6 @@ export default function HistoryPage() {
     setDeletingId(null);
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('userRole');
-    toast({
-        title: 'Sesión Cerrada',
-        description: 'Has cerrado sesión exitosamente.',
-    });
-    router.push('/login');
-  };
-
   const getEditUrl = (checklist: ChecklistSummary) => {
     // Defensive check to prevent runtime errors if items array is missing
     if (!checklist.items || !Array.isArray(checklist.items)) {
@@ -120,30 +111,6 @@ export default function HistoryPage() {
   const isViewer = userRole === 'viewer';
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="p-4 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-        <div className="container mx-auto flex flex-wrap items-center justify-between gap-4">
-           <div className="flex items-center gap-4">
-             <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
-             <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
-              Historial de Checklists
-            </h1>
-           </div>
-            <div className="flex items-center gap-2">
-                <Button asChild variant="outline">
-                    <Link href="/form">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Volver
-                    </Link>
-                </Button>
-                <Button variant="secondary" onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Cerrar Sesión
-                </Button>
-            </div>
-        </div>
-      </header>
-      <main className="container mx-auto p-4 md:p-8 flex-grow">
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -244,11 +211,58 @@ export default function HistoryPage() {
             </div>
           </CardContent>
         </Card>
-      </main>
-      <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
-        <p>Copyright © 2025. Todos los derechos reservados.</p>
-      </footer>
-    </div>
   );
+}
+
+
+export default function HistoryPage() {
+    const router = useRouter();
+    const { toast } = useToast();
+
+    const handleLogout = () => {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('isAdmin');
+        localStorage.removeItem('userRole');
+        toast({
+            title: 'Sesión Cerrada',
+            description: 'Has cerrado sesión exitosamente.',
+        });
+        router.push('/login');
+    };
+
+    return (
+        <div className="min-h-screen bg-background text-foreground flex flex-col">
+            <header className="p-4 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+                <div className="container mx-auto flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
+                    <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
+                    Historial de Checklists
+                    </h1>
+                </div>
+                    <div className="flex items-center gap-2">
+                        <Button asChild variant="outline">
+                            <Link href="/form">
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Volver
+                            </Link>
+                        </Button>
+                        <Button variant="secondary" onClick={handleLogout}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Cerrar Sesión
+                        </Button>
+                    </div>
+                </div>
+            </header>
+            <main className="container mx-auto p-4 md:p-8 flex-grow">
+                <SuspenseWrapper>
+                    <HistoryPageContent />
+                </SuspenseWrapper>
+            </main>
+            <footer className="py-4 border-t text-center text-muted-foreground text-sm">
+                <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+                <p>Copyright © 2025. Todos los derechos reservados.</p>
+            </footer>
+        </div>
+    );
 }
