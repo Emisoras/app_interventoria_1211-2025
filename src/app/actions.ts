@@ -328,6 +328,11 @@ export async function saveChecklist(data: SaveChecklistInput): Promise<{ success
       const { _id, ...dataToUpdate } = validation.data;
       await collection.updateOne({ _id: new ObjectId(_id) }, { $set: dataToUpdate });
     } else {
+      // Check for duplicates before inserting a new record
+      const existingChecklist = await collection.findOne({ campusName: validation.data.campusName });
+      if (existingChecklist) {
+          return { success: false, error: `Ya existe un checklist para "${validation.data.campusName}". Por favor, cárguelo desde el historial para actualizarlo.` };
+      }
       await collection.insertOne(validation.data);
     }
     
