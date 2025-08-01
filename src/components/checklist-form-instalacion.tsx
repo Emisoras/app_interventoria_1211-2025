@@ -1678,16 +1678,18 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {!isViewer && (
-                <DropdownMenuItem onClick={handleExportCSV}>
-                    Exportar a CSV
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                      Exportar a CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportPDF()}>
+                    Exportar a PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportViabilityPDF()}>
+                    Exportar Concepto Viabilidad PDF
+                  </DropdownMenuItem>
+                </>
               )}
-              <DropdownMenuItem onClick={() => handleExportPDF()}>
-                Exportar a PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportViabilityPDF()}>
-                Exportar Concepto Viabilidad PDF
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </CardFooter>
