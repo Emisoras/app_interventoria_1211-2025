@@ -70,7 +70,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md mb-8">
             <div className="flex items-center justify-center md:justify-start gap-2">
                 <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
-                <span className="text-xl font-bold">Check Interventoria</span>
+                <span className="text-xl font-bold">Syntrix Software de Interventoria</span>
             </div>
         </div>
       <Card className="w-full max-w-md">

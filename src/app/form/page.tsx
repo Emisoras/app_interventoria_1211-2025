@@ -54,7 +54,7 @@ export default function FormPage() {
           <div className="flex items-center gap-4">
             <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
             <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
-              Check Interventoria
+              Syntrix Software de Interventoria
             </h1>
           </div>
           <div className="flex items-center gap-2">

@@ -130,7 +130,7 @@ export default function ProfilePage() {
       <div className="w-full max-w-2xl mb-8">
         <div className="flex items-center gap-2">
             <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">Check Interventoria</span>
+            <span className="text-xl font-bold">Syntrix Software de Interventoria</span>
         </div>
       </div>
 
