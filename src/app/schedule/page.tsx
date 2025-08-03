@@ -20,13 +20,13 @@ export default function SchedulePage() {
     const userId = localStorage.getItem('userId');
     const role = localStorage.getItem('userRole');
 
-    if (!userId || (role !== 'admin' && role !== 'editor')) {
+    if (!userId) {
       toast({
         variant: 'destructive',
         title: 'Acceso Denegado',
-        description: 'No tiene permisos para acceder a esta página.',
+        description: 'Por favor, inicie sesión para acceder a esta página.',
       });
-      router.push('/form');
+      router.push('/login');
       return;
     }
     setUserRole(role);

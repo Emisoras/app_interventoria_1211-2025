@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { CalendarIcon, Download, Eraser, Loader2, Save, Sparkles, Trash2, Upload } from 'lucide-react';
+import { CalendarIcon, Download, Eraser, Loader2, Save, Sparkles, Trash2, Upload, Edit, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -53,6 +53,7 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const [userId, setUserId] = React.useState<string | null>(null);
   const [userName, setUserName] = React.useState<string>('');
@@ -94,31 +95,37 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
   }, [router, fetchActivities]);
     
   React.useEffect(() => {
-    if (!form.getValues('date')) {
+    if (!form.getValues('date') && !editingId) {
         form.setValue('date', new Date());
     }
-  }, [form]);
+  }, [form, editingId]);
 
 
   const onSubmit = async (data: ActivityFormData) => {
     if (!userId || !userName) return;
 
     setIsSaving(true);
-    const activityToSave = {
-      ...data,
+    const activityToSave: Omit<DailyActivity, '_id'> & { _id?: string } = {
+      date: data.date,
+      description: data.description,
       inspectorId: userId,
       inspectorName: userName,
     };
+    
+    if (editingId) {
+        activityToSave._id = editingId;
+    }
 
     const result = await saveDailyActivity(activityToSave);
     setIsSaving(false);
 
     if (result.success) {
       toast({
-        title: '¡Actividad Guardada!',
-        description: 'Tu actividad ha sido registrada correctamente.',
+        title: `¡Actividad ${editingId ? 'Actualizada' : 'Guardada'}!`,
+        description: `Tu actividad ha sido ${editingId ? 'actualizada' : 'registrada'} correctamente.`,
       });
       form.reset({ date: new Date(), description: '' });
+      setEditingId(null);
       if (userId) fetchActivities(userId);
     } else {
       toast({
@@ -128,6 +135,21 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
       });
     }
   };
+  
+  const handleEdit = (activity: DailyActivity) => {
+    setEditingId(activity._id!);
+    form.reset({
+        _id: activity._id,
+        date: new Date(activity.date),
+        description: activity.description,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  
+  const cancelEdit = () => {
+      setEditingId(null);
+      form.reset({ date: new Date(), description: ''});
+  }
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -378,8 +400,8 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
       <div className="lg:col-span-1">
         <Card>
           <CardHeader>
-            <CardTitle>Registrar Actividad</CardTitle>
-            <CardDescription>Añade una nueva entrada a tu bitácora diaria.</CardDescription>
+            <CardTitle>{editingId ? 'Editar Actividad' : 'Registrar Actividad'}</CardTitle>
+            <CardDescription>{editingId ? 'Modifique los datos de la actividad.' : 'Añade una nueva entrada a tu bitácora diaria.'}</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -444,10 +466,18 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
                   )}
                 />
                 {!isViewer && (
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Guardar Actividad
-                  </Button>
+                    <div className="flex items-center gap-2">
+                      <Button type="submit" disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {editingId ? 'Actualizar Actividad' : 'Guardar Actividad'}
+                      </Button>
+                      {editingId && (
+                        <Button type="button" variant="outline" onClick={cancelEdit}>
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Cancelar
+                        </Button>
+                      )}
+                    </div>
                 )}
               </form>
             </Form>
@@ -509,6 +539,14 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
                         <TableCell className="whitespace-pre-wrap">{activity.description}</TableCell>
                         {!isViewer && (
                           <TableCell className="text-right">
+                             <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(activity)}
+                                disabled={editingId === activity._id}
+                              >
+                               <Edit className="h-4 w-4" />
+                            </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button

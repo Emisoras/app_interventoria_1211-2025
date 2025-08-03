@@ -46,6 +46,7 @@ export default function FormPage() {
   };
 
   const canEdit = userRole === 'admin' || userRole === 'editor';
+  const isViewerOrEmpleado = userRole === 'viewer' || userRole === 'empleado';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -99,9 +100,8 @@ export default function FormPage() {
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow flex flex-col justify-center items-center">
         <div className="w-full max-w-4xl space-y-8">
-          {canEdit && (
-            <>
-              <div>
+          {(canEdit || isViewerOrEmpleado) && (
+             <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Planificación y Seguimiento</h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Button asChild size="lg" variant="secondary">
@@ -118,6 +118,10 @@ export default function FormPage() {
                       </Button>
                   </div>
               </div>
+          )}
+
+          {canEdit && (
+            <>
               <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Estudios de Campo (Viabilidad)</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -153,20 +157,6 @@ export default function FormPage() {
                   </div>
               </div>
             </>
-          )}
-
-          {(userRole === 'empleado') && (
-             <div>
-                <h2 className="text-xl font-semibold mb-4 text-center">Reportes</h2>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Button asChild size="lg" variant="secondary">
-                        <Link href="/activities" className="h-20 text-lg flex-col md:flex-row">
-                            <CalendarDays className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
-                            Actividades Diarias
-                        </Link>
-                    </Button>
-                </div>
-            </div>
           )}
         </div>
       </main>
