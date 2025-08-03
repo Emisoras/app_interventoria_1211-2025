@@ -6,7 +6,7 @@ export interface Campus {
     municipality: string;
 }
 
-export const campusData = [
+export const campusData: Omit<Campus, '_id'>[] = [
     { id: 1, name: 'SEDE TORCOROMA', institutionName: 'INST EDUCATIVA LA GARITA', municipality: 'Los Patios' },
     { id: 2, name: 'SEDE TASCARENA', institutionName: 'INST EDUCATIVA LA GARITA', municipality: 'Los Patios' },
     { id: 3, name: 'SEDE ASTILLEROS', institutionName: 'INST AGRICOLA RISARALDA', municipality: 'El Zulia' },

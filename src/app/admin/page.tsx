@@ -47,6 +47,7 @@ const adminUpdateUserSchema = z.object({
   cedula: z.string().min(5, 'La cédula es requerida.'),
   telefono: z.string().min(7, 'El teléfono es requerido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').optional().or(z.literal('')),
+  role: z.enum(['admin', 'editor', 'viewer', 'empleado']),
 });
 
 
@@ -58,10 +59,10 @@ type User = {
   telefono: string;
   createdAt: string;
   status: 'pending' | 'approved' | 'blocked';
-  role?: 'editor' | 'viewer' | 'admin';
+  role?: 'editor' | 'viewer' | 'admin' | 'empleado';
 };
 
-type UserWithRoleChange = User & { roleToAssign?: 'editor' | 'viewer' | 'admin' };
+type UserWithRoleChange = User & { roleToAssign?: 'editor' | 'viewer' | 'admin' | 'empleado' };
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -81,6 +82,7 @@ export default function AdminPage() {
       cedula: '',
       telefono: '',
       password: '',
+      role: 'viewer',
     },
   });
 
@@ -108,7 +110,7 @@ export default function AdminPage() {
     }
   }, [router, toast, fetchUsers]);
 
-  const handleRoleChange = (userId: string, role: 'editor' | 'viewer' | 'admin') => {
+  const handleRoleChange = (userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado') => {
     setUsers(users.map(u => u._id === userId ? { ...u, roleToAssign: role } : u));
   };
 
@@ -159,6 +161,7 @@ export default function AdminPage() {
       cedula: user.cedula,
       telefono: user.telefono,
       password: '',
+      role: user.role,
     });
     setIsUpdateDialogOpen(true);
   };
@@ -278,6 +281,7 @@ export default function AdminPage() {
                                     user.status === 'blocked' ? 'bg-red-200 text-red-800' :
                                     user.role === 'admin' ? 'bg-blue-200 text-blue-800' : 
                                     user.role === 'editor' ? 'bg-green-200 text-green-800' :
+                                    user.role === 'empleado' ? 'bg-purple-200 text-purple-800' :
                                     user.role === 'viewer' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100'
                                 }`}>
                                 {user.status === 'pending' ? 'Pendiente' : 
@@ -415,7 +419,7 @@ export default function AdminPage() {
                                     <FormLabel>Rol</FormLabel>
                                     <Select 
                                         onValueChange={field.onChange} 
-                                        defaultValue={(selectedUser as any)?.roleToAssign}
+                                        defaultValue={field.value}
                                     >
                                         <FormControl>
                                             <SelectTrigger>
@@ -425,6 +429,7 @@ export default function AdminPage() {
                                         <SelectContent>
                                             <SelectItem value="admin">Admin</SelectItem>
                                             <SelectItem value="editor">Editor</SelectItem>
+                                            <SelectItem value="empleado">Empleado</SelectItem>
                                             <SelectItem value="viewer">Visualizador</SelectItem>
                                         </SelectContent>
                                     </Select>

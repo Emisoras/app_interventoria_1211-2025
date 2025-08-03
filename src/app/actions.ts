@@ -6,11 +6,9 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 
 import { complianceCheck, type ComplianceCheckInput, type ComplianceCheckOutput } from '@/ai/flows/compliance-check';
+import { generateReportIntro } from '@/ai/flows/generate-activity-report-intro';
+import type { GenerateReportIntroInput, GenerateReportIntroOutput } from '@/ai/flows/schemas';
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
-import { contractorsData, Contractor } from '@/lib/contractors-data';
-import { institutionsData, Institution } from '@/lib/institutions-data';
-import { campusData, Campus } from '@/lib/campus-data';
-
 
 // Define the schema for the checklist data to be saved
 const SaveChecklistInputSchema = z.object({
@@ -66,7 +64,7 @@ const AdminUpdateUserSchema = z.object({
     cedula: z.string().min(5, 'La cédula es requerida.'),
     telefono: z.string().min(7, 'El teléfono es requerido.'),
     password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').optional().or(z.literal('')),
-    role: z.enum(['admin', 'editor', 'viewer']),
+    role: z.enum(['admin', 'editor', 'viewer', 'empleado']),
 });
 
 
@@ -88,6 +86,43 @@ const UpdateChecklistTemplateSchema = z.object({
 });
 export type UpdateChecklistTemplateInput = z.infer<typeof UpdateChecklistTemplateSchema>;
 
+// Schema for Daily Activities
+const DailyActivitySchema = z.object({
+  _id: z.string().optional(),
+  date: z.date(),
+  description: z.string().min(1, 'La descripción es requerida.'),
+  inspectorId: z.string(),
+  inspectorName: z.string(),
+});
+export type DailyActivity = z.infer<typeof DailyActivitySchema>;
+
+const ScheduleTaskStatusSchema = z.enum(['por_iniciar', 'iniciada', 'en_ejecucion', 'pausada', 'ejecutada']);
+export type ScheduleTaskStatus = z.infer<typeof ScheduleTaskStatusSchema>;
+
+const ScheduleTaskSchema = z.object({
+    _id: z.string().optional(),
+    name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
+    startDate: z.date().optional(),
+    endDate: z.date().optional(),
+    status: ScheduleTaskStatusSchema,
+    justification: z.string().optional(),
+    assignedTo: z.string().optional(),
+    progress: z.coerce.number().min(0).max(100).optional(),
+    dependencies: z.array(z.string()).optional(),
+}).refine(data => {
+    if (data.startDate && !data.endDate) return false;
+    if (!data.startDate && data.endDate) return false;
+    if (data.startDate && data.endDate) return data.endDate >= data.startDate;
+    return true;
+}, {
+    message: 'La fecha de finalización debe ser posterior o igual a la de inicio.',
+    path: ['endDate'],
+}).refine(data => !(data.status === 'pausada' && (!data.justification || data.justification.trim() === '')), {
+    message: 'La justificación es requerida si el estado es "Pausada".',
+    path: ['justification'],
+});
+
+export type ScheduleTask = z.infer<typeof ScheduleTaskSchema>;
 
 export async function runComplianceCheck(input: ComplianceCheckInput): Promise<ComplianceCheckOutput> {
   try {
@@ -98,6 +133,17 @@ export async function runComplianceCheck(input: ComplianceCheckInput): Promise<C
     return { itemsNeedingMoreEvidence: [] };
   }
 }
+
+export async function generateActivityReportIntro(input: GenerateReportIntroInput): Promise<GenerateReportIntroOutput> {
+    try {
+        const result = await generateReportIntro(input);
+        return result;
+    } catch (error) {
+        console.error('Error generating report intro:', error);
+        return 'No se pudo generar la introducción para el informe de actividades.';
+    }
+}
+
 
 async function getDbClient() {
   const uri = process.env.MONGODB_URI;
@@ -185,7 +231,7 @@ export async function registerUser(data: UserRegisterInput): Promise<{ success: 
       cedula: data.cedula,
       telefono: data.telefono,
       status: isAdmin ? 'approved' : 'pending',
-      role: isAdmin ? 'admin' : undefined,
+      role: isAdmin ? 'admin' : 'viewer',
       createdAt: new Date(),
     });
     
@@ -414,7 +460,7 @@ export async function getPendingUsers() {
   }
 }
 
-export async function approveUser(userId: string, role: 'editor' | 'viewer'): Promise<{ success: boolean; error?: string }> {
+export async function approveUser(userId: string, role: 'editor' | 'viewer' | 'empleado'): Promise<{ success: boolean; error?: string }> {
   const client = await getDbClient();
   try {
     await client.connect();
@@ -475,7 +521,7 @@ export async function deleteUserById(userId: string): Promise<{ success: boolean
     }
 }
 
-export async function updateUserRole(userId: string, role: 'editor' | 'viewer' | 'admin'): Promise<{ success: boolean, error?: string }> {
+export async function updateUserRole(userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado'): Promise<{ success: boolean, error?: string }> {
     const client = await getDbClient();
     try {
         await client.connect();
@@ -644,18 +690,38 @@ export async function updateChecklistTemplate(input: UpdateChecklistTemplateInpu
 }
 
 // Data Management Actions (Contractors, Institutions, Campuses)
+export interface Contractor {
+    _id: string; // From MongoDB
+    id?: number; // Optional original ID
+    name: string;
+}
 
-async function seedData<T>(db: any, collectionName: string, initialData: T[]) {
+export interface Institution {
+    _id: string; // From MongoDB
+    id?: number; // Optional original ID
+    name: string;
+}
+
+export interface Campus {
+    _id: string; // From MongoDB
+    id?: number; // Optional original ID
+    name: string;
+    institutionName: string;
+    municipality: string;
+}
+
+async function seedData<T>(db: any, collectionName: string, initialData: T[], nameField: keyof T) {
   const collection = db.collection(collectionName);
-  const count = await collection.countDocuments();
-  if (count === 0) {
-    // Add createdAt/updatedAt to initial data
-    const dataToInsert = initialData.map((item: any) => ({
+  for (const item of initialData) {
+    const query = { [nameField]: item[nameField] };
+    const existing = await collection.findOne(query);
+    if (!existing) {
+      await collection.insertOne({
         ...item,
         createdAt: new Date(),
         updatedAt: new Date(),
-    }));
-    await collection.insertMany(dataToInsert);
+      });
+    }
   }
 }
 
@@ -665,7 +731,6 @@ export async function getContractors(): Promise<Contractor[]> {
   try {
     await client.connect();
     const db = client.db("instacheck");
-    await seedData(db, "contractors", contractorsData);
     const collection = db.collection("contractors");
     const contractors = await collection.find({}).sort({ name: 1 }).toArray();
     return JSON.parse(JSON.stringify(contractors));
@@ -728,7 +793,6 @@ export async function getInstitutions(): Promise<Institution[]> {
   try {
     await client.connect();
     const db = client.db("instacheck");
-    await seedData(db, "institutions", institutionsData);
     const collection = db.collection("institutions");
     const institutions = await collection.find({}).sort({ name: 1 }).toArray();
     return JSON.parse(JSON.stringify(institutions));
@@ -792,7 +856,6 @@ export async function getCampuses(): Promise<Campus[]> {
   try {
     await client.connect();
     const db = client.db("instacheck");
-    await seedData(db, "campuses", campusData);
     const collection = db.collection("campuses");
     const campuses = await collection.find({}).sort({ name: 1 }).toArray();
     return JSON.parse(JSON.stringify(campuses));
@@ -855,4 +918,149 @@ export async function deleteCampus(id: string): Promise<{ success: boolean, erro
     } finally {
         await client.close();
     }
+}
+
+// Daily Activity Actions
+
+export async function getDailyActivities(inspectorId: string): Promise<DailyActivity[]> {
+  if (!inspectorId) return [];
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("daily_activities");
+    const activities = await collection.find({ inspectorId }).sort({ date: -1 }).toArray();
+    return JSON.parse(JSON.stringify(activities));
+  } finally {
+    await client.close();
+  }
+}
+
+export async function saveDailyActivity(activity: Omit<DailyActivity, '_id'> & { _id?: string }): Promise<{ success: boolean, activity?: any, error?: string }> {
+  const { _id, ...activityData } = activity;
+  const validation = DailyActivitySchema.omit({ _id: true }).safeParse(activityData);
+
+  if (!validation.success) {
+    return { success: false, error: 'Datos de actividad inválidos.' };
+  }
+  
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("daily_activities");
+
+    if (_id) {
+      // Update
+      const result = await collection.updateOne({ _id: new ObjectId(_id) }, { $set: activityData });
+      if (result.matchedCount === 0) {
+        return { success: false, error: 'Actividad no encontrada.' };
+      }
+      return { success: true, activity: { ...activityData, _id } };
+    } else {
+      // Insert
+      const result = await collection.insertOne(activityData);
+      return { success: true, activity: { ...activityData, _id: result.insertedId } };
+    }
+  } catch (e) {
+    console.error("Error saving daily activity:", e);
+    return { success: false, error: "Error al guardar la actividad." };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function deleteDailyActivity(id: string): Promise<{ success: boolean, error?: string }> {
+  if (!ObjectId.isValid(id)) return { success: false, error: 'ID inválido.' };
+  
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("daily_activities");
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return { success: false, error: 'Actividad no encontrada.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Error deleting daily activity:", e);
+    return { success: false, error: "Error al eliminar la actividad." };
+  } finally {
+    await client.close();
+  }
+}
+
+// Schedule Task Actions
+export async function getScheduleTasks(): Promise<ScheduleTask[]> {
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("schedule_tasks");
+    // Sort manually in code to allow for grouping headers
+    const tasks = await collection.find({}).toArray();
+    return JSON.parse(JSON.stringify(tasks));
+  } finally {
+    await client.close();
+  }
+}
+
+export async function saveScheduleTask(task: Omit<ScheduleTask, '_id'> & { _id?: string }): Promise<{ success: boolean, task?: any, error?: string }> {
+  const { _id, ...taskData } = task;
+  const validation = ScheduleTaskSchema.safeParse(taskData);
+
+  if (!validation.success) {
+    return { success: false, error: validation.error.errors.map(e => e.message).join(', ') };
+  }
+  
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("schedule_tasks");
+
+    const dataToSave = { ...validation.data };
+    if (!dataToSave.startDate) dataToSave.startDate = undefined;
+    if (!dataToSave.endDate) dataToSave.endDate = undefined;
+
+    if (_id) {
+      // Update
+      const result = await collection.updateOne({ _id: new ObjectId(_id) }, { $set: dataToSave });
+      if (result.matchedCount === 0) {
+        return { success: false, error: 'Tarea no encontrada.' };
+      }
+      return { success: true, task: { ...dataToSave, _id } };
+    } else {
+      // Insert
+      const result = await collection.insertOne(dataToSave);
+      return { success: true, task: { ...dataToSave, _id: result.insertedId.toString() } };
+    }
+  } catch (e) {
+    console.error("Error saving schedule task:", e);
+    return { success: false, error: "Error al guardar la tarea del cronograma." };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function deleteScheduleTask(id: string): Promise<{ success: boolean, error?: string }> {
+  if (!ObjectId.isValid(id)) return { success: false, error: 'ID inválido.' };
+  
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("schedule_tasks");
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return { success: false, error: 'Tarea no encontrada.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Error deleting schedule task:", e);
+    return { success: false, error: "Error al eliminar la tarea." };
+  } finally {
+    await client.close();
+  }
 }

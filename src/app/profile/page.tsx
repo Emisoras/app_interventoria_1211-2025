@@ -45,7 +45,7 @@ export default function ProfilePage() {
     },
   });
 
-  const isViewer = userRole === 'viewer';
+  const isReadOnly = userRole === 'viewer' || userRole === 'empleado';
 
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
@@ -99,7 +99,7 @@ export default function ProfilePage() {
   }, [form, toast, userId, router]);
 
   const onSubmit = async (data: UserUpdateInput) => {
-    if (isViewer) {
+    if (isReadOnly) {
       toast({
         variant: 'destructive',
         title: 'Acción no permitida',
@@ -138,7 +138,7 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle>Mi Perfil</CardTitle>
           <CardDescription>
-            {isViewer ? 'Aquí puede ver su información personal.' : 'Actualiza tu información personal aquí.'}
+            {isReadOnly ? 'Aquí puede ver su información personal.' : 'Actualiza tu información personal aquí.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -157,7 +157,7 @@ export default function ProfilePage() {
                     <FormItem>
                         <FormLabel>Nombre de Usuario</FormLabel>
                         <FormControl>
-                        <Input placeholder="tu_usuario" {...field} disabled={isViewer} />
+                        <Input placeholder="tu_usuario" {...field} disabled={isReadOnly} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -177,7 +177,7 @@ export default function ProfilePage() {
                     <FormItem>
                         <FormLabel>Cédula</FormLabel>
                         <FormControl>
-                        <Input placeholder="Tu número de cédula" {...field} disabled={isViewer}/>
+                        <Input placeholder="Tu número de cédula" {...field} disabled={isReadOnly}/>
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -190,14 +190,14 @@ export default function ProfilePage() {
                     <FormItem>
                         <FormLabel>Teléfono</FormLabel>
                         <FormControl>
-                        <Input placeholder="Tu número de teléfono" {...field} disabled={isViewer}/>
+                        <Input placeholder="Tu número de teléfono" {...field} disabled={isReadOnly}/>
                         </FormControl>
                         <FormMessage />
                     </FormItem>
                     )}
                 />
               </div>
-              {!isViewer && (
+              {!isReadOnly && (
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={isLoading || isFetching}>
                       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

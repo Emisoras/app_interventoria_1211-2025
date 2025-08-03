@@ -1,0 +1,84 @@
+// src/app/activities/page.tsx
+'use client';
+
+import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { SuspenseWrapper } from '@/components/suspense-wrapper';
+import { ActivityLog } from '@/components/activity-log';
+
+export default function ActivitiesPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const role = localStorage.getItem('userRole');
+
+    if (!userId || (role === 'viewer')) {
+      toast({
+        variant: 'destructive',
+        title: 'Acceso Denegado',
+        description: 'No tiene permisos para acceder a esta página.',
+      });
+      router.push('/form');
+      return;
+    }
+    setUserRole(role);
+  }, [router, toast]);
+
+
+  const handleLogout = () => {
+    localStorage.removeItem('userId');
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('userRole');
+    toast({
+        title: 'Sesión Cerrada',
+        description: 'Has cerrado sesión exitosamente.',
+    });
+    router.push('/login');
+  };
+
+  const isReadOnly = userRole === 'empleado';
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="p-4 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
+            <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
+              Registro de Actividades Diarias
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+             <Button asChild variant="outline">
+              <Link href="/form">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver
+              </Link>
+            </Button>
+            <Button variant="secondary" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar Sesión
+            </Button>
+          </div>
+        </div>
+      </header>
+      <main className="container mx-auto p-4 md:p-8 flex-grow">
+        <SuspenseWrapper>
+            <ActivityLog isViewer={isReadOnly} />
+        </SuspenseWrapper>
+      </main>
+      <footer className="py-4 border-t text-center text-muted-foreground text-sm">
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Copyright © 2025. Todos los derechos reservados.</p>
+      </footer>
+    </div>
+  );
+}

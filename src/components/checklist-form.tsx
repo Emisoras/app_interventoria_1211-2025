@@ -15,7 +15,10 @@ import SignatureCanvas from 'react-signature-canvas';
 import { z } from 'zod';
 
 import type { ComplianceCheckOutput } from '@/ai/flows/compliance-check';
-import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getChecklistTemplate, ChecklistQuestion } from '@/app/actions';
+import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getChecklistTemplate, type ChecklistQuestion, getContractors, addContractor, updateContractor, deleteContractor, getInstitutions, addInstitution, updateInstitution, deleteInstitution, getCampuses, addCampus, updateCampus, deleteCampus } from '@/app/actions';
+import type { Contractor } from '@/lib/contractors-data';
+import type { Institution } from '@/lib/institutions-data';
+import type { Campus } from '@/lib/campus-data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,9 +36,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { campusData } from '@/lib/campus-data';
-import { contractorsData } from '@/lib/contractors-data';
-import { institutionsData } from '@/lib/institutions-data';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 
@@ -104,23 +104,23 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [signature, setSignature] = React.useState<string | null>(null);
 
-  const [contractors, setContractors] = React.useState(contractorsData);
+  const [contractors, setContractors] = React.useState<Contractor[]>([]);
   const [openContractorsPopover, setOpenContractorsPopover] = React.useState(false);
   const [isManageContractorsOpen, setIsManageContractorsOpen] = React.useState(false);
   const [newContractorName, setNewContractorName] = React.useState('');
-  const [editingContractor, setEditingContractor] = React.useState<{ id: number; name: string } | null>(null);
+  const [editingContractor, setEditingContractor] = React.useState<Contractor | null>(null);
 
-  const [institutions, setInstitutions] = React.useState(institutionsData);
+  const [institutions, setInstitutions] = React.useState<Institution[]>([]);
   const [openInstitutionsPopover, setOpenInstitutionsPopover] = React.useState(false);
   const [isManageInstitutionsOpen, setIsManageInstitutionsOpen] = React.useState(false);
   const [newInstitutionName, setNewInstitutionName] = React.useState('');
-  const [editingInstitution, setEditingInstitution] = React.useState<{ id: number; name: string } | null>(null);
+  const [editingInstitution, setEditingInstitution] = React.useState<Institution | null>(null);
 
-  const [campuses, setCampuses] = React.useState(campusData);
+  const [campuses, setCampuses] = React.useState<Campus[]>([]);
   const [openCampusesPopover, setOpenCampusesPopover] = React.useState(false);
   const [isManageCampusesOpen, setIsManageCampusesOpen] = React.useState(false);
   const [newCampus, setNewCampus] = React.useState({ name: '', institutionName: '', municipality: ''});
-  const [editingCampus, setEditingCampus] = React.useState<{ id: number; name: string; institutionName: string; municipality: string; } | null>(null);
+  const [editingCampus, setEditingCampus] = React.useState<Campus | null>(null);
 
   const form = useForm<ContractorFormData>({
     resolver: zodResolver(formSchema),
@@ -142,6 +142,17 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
   const [viabilityAnalisis, setViabilityAnalisis] = React.useState('');
   const [viabilityConclusion, setViabilityConclusion] = React.useState('');
 
+  const fetchDropdownData = React.useCallback(async () => {
+    const [contractorsData, institutionsData, campusesData] = await Promise.all([
+        getContractors(),
+        getInstitutions(),
+        getCampuses(),
+    ]);
+    setContractors(contractorsData);
+    setInstitutions(institutionsData);
+    setCampuses(campusesData);
+  }, []);
+
 
   React.useEffect(() => {
     setIsClient(true);
@@ -149,6 +160,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
 
     const loadData = async () => {
         setChecklistLoading(true);
+        await fetchDropdownData();
 
         if (checklistId) {
             const savedData = await getChecklistById(checklistId);
@@ -190,7 +202,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
     loadData();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, checklistType]);
+  }, [searchParams, checklistType, fetchDropdownData]);
 
   React.useEffect(() => {
     const subscription = form.watch((value) => {
@@ -252,81 +264,105 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
     }
   };
 
-  const handleAddContractor = () => {
+  const handleAddContractor = async () => {
     if (newContractorName.trim()) {
-      setContractors([
-        ...contractors,
-        { id: contractors.length + 1, name: newContractorName.trim() },
-      ]);
-      setNewContractorName('');
+      const result = await addContractor(newContractorName.trim());
+      if (result.success) {
+        setContractors([...contractors, result.contractor]);
+        setNewContractorName('');
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
     }
   };
 
-  const handleDeleteContractor = (id: number) => {
-    setContractors(contractors.filter((contractor) => contractor.id !== id));
-  };
-
-  const handleUpdateContractor = () => {
-    if (editingContractor) {
-      setContractors(
-        contractors.map((contractor) =>
-          contractor.id === editingContractor.id ? { ...contractor, name: editingContractor.name.trim() } : contractor
-        )
-      );
-      setEditingContractor(null);
+  const handleDeleteContractor = async (id: string) => {
+    const result = await deleteContractor(id);
+    if (result.success) {
+      setContractors(contractors.filter((c) => c._id !== id));
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
   };
-  
-  const handleAddInstitution = () => {
+
+  const handleUpdateContractor = async () => {
+    if (editingContractor && editingContractor.name.trim()) {
+      const result = await updateContractor(editingContractor._id, editingContractor.name.trim());
+      if (result.success) {
+        await fetchDropdownData();
+        setEditingContractor(null);
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+    }
+  };
+
+  const handleAddInstitution = async () => {
     if (newInstitutionName.trim()) {
-      setInstitutions([
-        ...institutions,
-        { id: institutions.length + 1, name: newInstitutionName.trim() },
-      ]);
-      setNewInstitutionName('');
+        const result = await addInstitution(newInstitutionName.trim());
+        if (result.success) {
+            setInstitutions([...institutions, result.institution]);
+            setNewInstitutionName('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
     }
   };
 
-  const handleDeleteInstitution = (id: number) => {
-    setInstitutions(institutions.filter((inst) => inst.id !== id));
+  const handleDeleteInstitution = async (id: string) => {
+    const result = await deleteInstitution(id);
+    if (result.success) {
+      setInstitutions(institutions.filter((c) => c._id !== id));
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
   };
 
-  const handleUpdateInstitution = () => {
-    if (editingInstitution) {
-      setInstitutions(
-        institutions.map((inst) =>
-          inst.id === editingInstitution.id ? { ...inst, name: editingInstitution.name.trim() } : inst
-        )
-      );
-      setEditingInstitution(null);
+  const handleUpdateInstitution = async () => {
+    if (editingInstitution && editingInstitution.name.trim()) {
+      const result = await updateInstitution(editingInstitution._id, editingInstitution.name.trim());
+      if (result.success) {
+        await fetchDropdownData();
+        setEditingInstitution(null);
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
     }
   };
   
-  const handleAddCampus = () => {
+  const handleAddCampus = async () => {
     if (newCampus.name.trim()) {
-      const newId = campuses.length > 0 ? Math.max(...campuses.map(c => c.id)) + 1 : 1;
-      setCampuses([
-        ...campuses,
-        { id: newId, ...newCampus },
-      ]);
-      setNewCampus({ name: '', institutionName: '', municipality: '' });
+      const result = await addCampus(newCampus);
+      if (result.success) {
+        setCampuses([...campuses, result.campus]);
+        setNewCampus({ name: '', institutionName: '', municipality: '' });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
     }
   };
 
-  const handleDeleteCampus = (id: number) => {
-    setCampuses(campuses.filter((campus) => campus.id !== id));
-  };
-
-  const handleUpdateCampus = () => {
-    if (editingCampus) {
-      setCampuses(
-        campuses.map((campus) =>
-          campus.id === editingCampus.id ? { ...editingCampus, name: editingCampus.name.trim() } : campus
-        )
-      );
-      setEditingCampus(null);
+  const handleDeleteCampus = async (id: string) => {
+    const result = await deleteCampus(id);
+    if (result.success) {
+      setCampuses(campuses.filter((c) => c._id !== id));
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
   };
+
+  const handleUpdateCampus = async () => {
+    if (editingCampus && editingCampus.name.trim()) {
+      const result = await updateCampus(editingCampus._id, { name: editingCampus.name, institutionName: editingCampus.institutionName, municipality: editingCampus.municipality });
+      if (result.success) {
+        await fetchDropdownData();
+        setEditingCampus(null);
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+    }
+  };
+
 
   const handleVerifyCompliance = async () => {
     setIsChecking(true);
@@ -881,7 +917,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                 {campuses.map((campus) => (
                                   <CommandItem
                                     value={campus.name}
-                                    key={campus.id}
+                                    key={campus._id}
                                     onSelect={() => {
                                       form.setValue('campusName', campus.name);
                                       if (checklistType === 'viabilidad-educativa') {
@@ -948,10 +984,10 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                             <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
                               {campuses.map((campus) => (
                                 <div
-                                  key={campus.id}
+                                  key={campus._id}
                                   className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50"
                                 >
-                                  {editingCampus?.id === campus.id ? (
+                                  {editingCampus?._id === campus._id ? (
                                     <div className="flex flex-col gap-2 flex-1">
                                       <Input
                                           value={editingCampus.name}
@@ -987,7 +1023,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                     </div>
                                   )}
                                   <div className="flex items-center gap-1">
-                                    {editingCampus?.id === campus.id ? (
+                                    {editingCampus?._id === campus._id ? (
                                       <>
                                         <Button
                                           variant="ghost"
@@ -1020,7 +1056,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7 text-destructive"
-                                          onClick={() => handleDeleteCampus(campus.id)}
+                                          onClick={() => handleDeleteCampus(campus._id)}
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -1089,7 +1125,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                 {institutions.map((inst) => (
                                     <CommandItem
                                     value={inst.name}
-                                    key={inst.id}
+                                    key={inst._id}
                                     onSelect={() => {
                                         form.setValue('institutionName', inst.name);
                                         setOpenInstitutionsPopover(false);
@@ -1135,8 +1171,8 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                 </div>
                                 <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
                                     {institutions.map(inst => (
-                                        <div key={inst.id} className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50">
-                                            {editingInstitution?.id === inst.id ? (
+                                        <div key={inst._id} className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50">
+                                            {editingInstitution?._id === inst._id ? (
                                                 <Input 
                                                     value={editingInstitution.name}
                                                     onChange={(e) => setEditingInstitution({...editingInstitution, name: e.target.value})}
@@ -1147,7 +1183,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                             )}
                                             
                                             <div className="flex items-center gap-1">
-                                                {editingInstitution?.id === inst.id ? (
+                                                {editingInstitution?._id === inst._id ? (
                                                     <>
                                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleUpdateInstitution}>
                                                             <Save className="h-4 w-4" />
@@ -1161,7 +1197,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingInstitution(inst)}>
                                                             <Edit className="h-4 w-4" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteInstitution(inst.id)}>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteInstitution(inst._id)}>
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </>
@@ -1227,7 +1263,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                 {contractors.map((contractor) => (
                                   <CommandItem
                                     value={contractor.name}
-                                    key={contractor.id}
+                                    key={contractor._id}
                                     onSelect={() => {
                                       form.setValue('contractorName', contractor.name);
                                       setOpenContractorsPopover(false);
@@ -1276,10 +1312,10 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                             <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
                               {contractors.map((contractor) => (
                                 <div
-                                  key={contractor.id}
+                                  key={contractor._id}
                                   className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50"
                                 >
-                                  {editingContractor?.id === contractor.id ? (
+                                  {editingContractor?._id === contractor._id ? (
                                     <Input
                                       value={editingContractor.name}
                                       onChange={(e) =>
@@ -1291,7 +1327,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                     <span className="text-sm flex-1">{contractor.name}</span>
                                   )}
                                   <div className="flex items-center gap-1">
-                                    {editingContractor?.id === contractor.id ? (
+                                    {editingContractor?._id === contractor._id ? (
                                       <>
                                         <Button
                                           variant="ghost"
@@ -1324,7 +1360,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7 text-destructive"
-                                          onClick={() => handleDeleteContractor(contractor.id)}
+                                          onClick={() => handleDeleteContractor(contractor._id)}
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>

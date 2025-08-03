@@ -4,6 +4,6 @@ export interface Contractor {
     name: string;
 }
 
-export const contractorsData = [
+export const contractorsData: Omit<Contractor, '_id'>[] = [
     { id: 1, name: 'Emtel' },
 ];

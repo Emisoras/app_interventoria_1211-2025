@@ -4,7 +4,7 @@ export interface Institution {
     name: string;
 }
 
-export const institutionsData = [
+export const institutionsData: Omit<Institution, '_id'>[] = [
     { id: 1, name: 'INST EDUCATIVA LA GARITA' },
     { id: 2, name: 'INST AGRICOLA RISARALDA' },
     { id: 3, name: 'INSTITUCION EDUCATIVA RURAL FLORENTINO BLANCO' },

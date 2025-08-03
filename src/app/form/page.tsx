@@ -5,7 +5,7 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench } from 'lucide-react';
+import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -45,7 +45,7 @@ export default function FormPage() {
     router.push('/login');
   };
 
-  const isViewer = userRole === 'viewer';
+  const canEdit = userRole === 'admin' || userRole === 'editor';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -99,40 +99,75 @@ export default function FormPage() {
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow flex flex-col justify-center items-center">
         <div className="w-full max-w-4xl space-y-8">
-            <div>
-                <h2 className="text-xl font-semibold mb-4 text-center">Estudios de Campo (Viabilidad)</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Button asChild size="lg" variant="outline">
-                        <Link href="/form/viabilidad-educativa" className="h-20 text-lg flex-col md:flex-row">
-                            <CheckSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
-                            Check de Viabilidad Educativa
-                        </Link>
-                    </Button>
-                     <Button asChild size="lg" variant="outline">
-                        <Link href="/form/viabilidad-junta" className="h-20 text-lg flex-col md:flex-row">
-                            <CheckSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
-                            Check de Viabilidad Junta
-                        </Link>
-                    </Button>
-                </div>
-            </div>
+          {canEdit && (
+            <>
+              <div>
+                  <h2 className="text-xl font-semibold mb-4 text-center">Planificación y Seguimiento</h2>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button asChild size="lg" variant="secondary">
+                          <Link href="/schedule" className="h-20 text-lg flex-col md:flex-row">
+                              <GanttChartSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Cronograma del Proyecto
+                          </Link>
+                      </Button>
+                      <Button asChild size="lg" variant="secondary">
+                          <Link href="/activities" className="h-20 text-lg flex-col md:flex-row">
+                              <CalendarDays className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Actividades Diarias
+                          </Link>
+                      </Button>
+                  </div>
+              </div>
+              <div>
+                  <h2 className="text-xl font-semibold mb-4 text-center">Estudios de Campo (Viabilidad)</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button asChild size="lg" variant="outline">
+                          <Link href="/form/viabilidad-educativa" className="h-20 text-lg flex-col md:flex-row">
+                              <CheckSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Check de Viabilidad Educativa
+                          </Link>
+                      </Button>
+                      <Button asChild size="lg" variant="outline">
+                          <Link href="/form/viabilidad-junta" className="h-20 text-lg flex-col md:flex-row">
+                              <CheckSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Check de Viabilidad Junta
+                          </Link>
+                      </Button>
+                  </div>
+              </div>
+              <div>
+                  <h2 className="text-xl font-semibold mb-4 text-center">Instalación</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button asChild size="lg">
+                          <Link href="/form/instalacion" className="h-20 text-lg flex-col md:flex-row">
+                              <Wrench className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Check de Instalación Educativa
+                          </Link>
+                      </Button>
+                      <Button asChild size="lg">
+                          <Link href="/form/instalacion-junta" className="h-20 text-lg flex-col md:flex-row">
+                              <Wrench className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Check de Instalación Junta
+                          </Link>
+                      </Button>
+                  </div>
+              </div>
+            </>
+          )}
+
+          {(userRole === 'empleado') && (
              <div>
-                <h2 className="text-xl font-semibold mb-4 text-center">Instalación</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Button asChild size="lg">
-                        <Link href="/form/instalacion" className="h-20 text-lg flex-col md:flex-row">
-                            <Wrench className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
-                            Check de Instalación Educativa
-                        </Link>
-                    </Button>
-                    <Button asChild size="lg">
-                        <Link href="/form/instalacion-junta" className="h-20 text-lg flex-col md:flex-row">
-                            <Wrench className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
-                            Check de Instalación Junta
+                <h2 className="text-xl font-semibold mb-4 text-center">Reportes</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button asChild size="lg" variant="secondary">
+                        <Link href="/activities" className="h-20 text-lg flex-col md:flex-row">
+                            <CalendarDays className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                            Actividades Diarias
                         </Link>
                     </Button>
                 </div>
             </div>
+          )}
         </div>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
