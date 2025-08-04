@@ -4,11 +4,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { addDays, differenceInDays, format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { AlertTriangle, CalendarIcon, Edit, Loader2, Plus, Save, Trash2, X, Check, Flame } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, Edit, Loader2, Plus, Save, Trash2, X, Check, Flame, Download } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine, Layer, Rectangle, Polygon } from 'recharts';
 import { z } from 'zod';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, type ScheduleTask, ScheduleTaskStatus } from '@/app/actions';
 import {
@@ -46,6 +48,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { ChevronsUpDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 
 const taskSchema = z.object({
@@ -59,8 +62,15 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100).optional(),
   dependencies: z.array(z.string()).optional(),
 }).refine(data => {
-    if (data.startDate && !data.endDate) return false;
-    if (!data.startDate && data.endDate) return data.endDate >= data.startDate;
+    // If it's a group header (no dates), it's valid.
+    if (!data.startDate && !data.endDate) return true;
+    
+    // If it's a milestone (same start/end date or just start date) we handle it, but for schema let's ensure if one exists, the other does for duration tasks
+    if (data.startDate && !data.endDate) return true;
+    if (!data.startDate && data.endDate) return false;
+    
+    if (data.startDate && data.endDate) return data.endDate >= data.startDate;
+    
     return true;
 }, {
     message: 'La fecha de finalización debe ser posterior o igual a la de inicio.',
@@ -105,23 +115,18 @@ const MilestoneShape = ({ x, y, size, fill }: { x: number; y: number; size: numb
 const CustomBar = (props: CustomBarProps) => {
     const { x, y, width, height, payload, isCritical } = props;
     const progress = payload.status === 'ejecutada' ? 100 : payload.progress || 0;
-    const isCompleted = payload.status === 'ejecutada';
     
     // Check if it's a milestone (duration is 0 or 1 day)
-    const duration = differenceInDays(new Date(payload.endDate), new Date(payload.startDate));
-    if (duration <= 0) {
+    const isMilestone = !payload.endDate || differenceInDays(new Date(payload.endDate), new Date(payload.startDate)) <= 0;
+    if (isMilestone) {
         return <MilestoneShape x={x + width / 2} y={y + height / 2} size={height * 0.8} fill={statusMap[payload.status].fill} />;
     }
     
     const progressWidth = (width * progress) / 100;
 
-    let baseFillColor = isCompleted ? 'hsl(var(--chart-2) / 0.15)' : 'hsl(var(--primary) / 0.2)';
+    const baseFillColor = 'hsl(var(--primary) / 0.2)';
     let progressFillColor = statusMap[payload.status].fill;
     
-    if (isCompleted) {
-        progressFillColor = 'hsl(var(--chart-2) / 0.4)';
-    }
-
     return (
         <Layer>
             <Rectangle
@@ -295,12 +300,107 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
     }
   };
   
+  const handleExportCSV = () => {
+    if (tasks.length === 0) {
+        toast({ variant: 'destructive', title: 'No hay tareas', description: 'No hay tareas para exportar.'});
+        return;
+    }
+
+    const headers = ["ID", "Nombre", "Fecha de Inicio", "Fecha de Fin", "Duración (días)", "Estado", "Progreso (%)", "Asignado a", "Dependencias"];
+    const csvRows = [headers.join(',')];
+
+    const taskMap = new Map(tasks.map(t => [t._id, t.name]));
+
+    for (const task of tasks) {
+        const isGroupHeader = !task.startDate && !task.endDate;
+        const duration = task.startDate && task.endDate ? differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1 : 0;
+        
+        const values = [
+            task._id,
+            `"${task.name.replace(/"/g, '""')}"`,
+            task.startDate ? format(new Date(task.startDate), 'yyyy-MM-dd') : '',
+            task.endDate ? format(new Date(task.endDate), 'yyyy-MM-dd') : '',
+            isGroupHeader ? '' : duration,
+            isGroupHeader ? 'Fase' : statusMap[task.status].label,
+            isGroupHeader ? '' : task.progress || 0,
+            `"${task.assignedTo || ''}"`,
+            `"${(task.dependencies || []).map(depId => taskMap.get(depId) || depId).join(', ')}"`,
+        ];
+        csvRows.push(values.join(','));
+    }
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `cronograma_proyecto_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    toast({ title: '¡Exportado!', description: 'El cronograma se ha exportado a CSV.'});
+  };
+
+  const handleExportPDF = () => {
+    if (tasks.length === 0) {
+      toast({ variant: 'destructive', title: 'No hay tareas', description: 'No hay tareas para exportar.' });
+      return;
+    }
+  
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Cronograma de Actividades del Proyecto', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Fecha de exportación: ${format(new Date(), 'PPP', { locale: es })}`, 14, 29);
+
+    const tableColumn = ["Tarea", "Fecha Inicio", "Fecha Fin", "Duración", "Estado", "Progreso"];
+    const tableRows: any[][] = [];
+
+    tasks.forEach(task => {
+        const isGroupHeader = !task.startDate && !task.endDate;
+        
+        if (isGroupHeader) {
+            // Add a separator or a differently styled row for group headers
+            tableRows.push([{ content: task.name, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [230, 230, 230] } }]);
+        } else {
+            const duration = task.startDate && task.endDate ? `${differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1} días` : 'Hito';
+            const taskData = [
+                task.name,
+                task.startDate ? format(new Date(task.startDate), 'dd/MM/yy') : 'N/A',
+                task.endDate ? format(new Date(task.endDate), 'dd/MM/yy') : 'N/A',
+                duration,
+                statusMap[task.status].label,
+                `${task.status === 'ejecutada' ? 100 : task.progress || 0}%`,
+            ];
+            tableRows.push(taskData);
+        }
+    });
+
+    (doc as any).autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        theme: 'grid',
+        headStyles: { fillColor: [22, 160, 133] },
+    });
+    
+    const fileName = `cronograma_proyecto_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    doc.save(fileName);
+    toast({ title: '¡Exportado!', description: 'El cronograma se ha exportado a PDF.'});
+  };
+
   const chartData = React.useMemo(() => {
     return tasks
-      .filter(task => task.startDate && task.endDate)
+      .filter(task => task.startDate) // Only include tasks with a start date
       .map((task) => {
           const startDate = startOfDay(new Date(task.startDate!));
-          const endDate = startOfDay(new Date(task.endDate!));
+          // For milestones, endDate might be null, so we use startDate
+          const endDate = startOfDay(new Date(task.endDate || task.startDate!));
           
           return {
             ...task,
@@ -310,13 +410,13 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
   }, [tasks]);
   
   const domain: [number, number] = React.useMemo(() => {
-      const taskNodes = tasks.filter(task => task.startDate && task.endDate);
+      const taskNodes = tasks.filter(task => task.startDate);
       if (taskNodes.length === 0) {
         const today = new Date();
         return [addDays(today, -30).getTime(), addDays(today, 30).getTime()];
       }
       const startDates = taskNodes.map(t => new Date(t.startDate!).getTime());
-      const endDates = taskNodes.map(t => new Date(t.endDate!).getTime());
+      const endDates = taskNodes.map(t => new Date(t.endDate || t.startDate!).getTime());
       return [Math.min(...startDates), Math.max(...endDates)];
   }, [tasks]);
 
@@ -330,12 +430,27 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                 <CardTitle>Diagrama de Gantt</CardTitle>
                 <CardDescription>Visualización de la línea de tiempo de las tareas del proyecto.</CardDescription>
             </div>
-            {!isReadOnly && (
-                <Button onClick={() => handleOpenDialog()}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Añadir Tarea
-                </Button>
-            )}
+            <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={handleExportCSV}>Exportar a CSV</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportPDF}>Exportar a PDF</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {!isReadOnly && (
+                    <Button onClick={() => handleOpenDialog()}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Añadir Tarea
+                    </Button>
+                )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="h-[400px] w-full">
@@ -436,7 +551,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                   tasks.map(task => {
                     const isGroupHeader = !task.startDate && !task.endDate;
                     const duration = task.startDate && task.endDate ? differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1 : 0;
-                    const isDueSoon = duration > 0 && differenceInDays(new Date(task.endDate!), new Date()) <= 10 && task.status !== 'ejecutada';
+                    const isDueSoon = duration > 0 && task.endDate && differenceInDays(new Date(task.endDate), new Date()) <= 10 && task.status !== 'ejecutada';
                     const isCritical = criticalPath.includes(task._id!);
                     
                     if (isGroupHeader) {
@@ -453,14 +568,25 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                         <TableRow key={task._id} className={isDueSoon ? 'bg-destructive/10' : ''}>
                         <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                                {isCritical && <Flame className="h-4 w-4 text-red-500" title="Tarea Crítica"/>}
+                                {isCritical && 
+                                <TooltipProvider>
+                                    <UiTooltip>
+                                        <TooltipTrigger asChild>
+                                            <Flame className="h-4 w-4 text-red-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Esta tarea es parte de la Ruta Crítica.</p>
+                                        </TooltipContent>
+                                    </UiTooltip>
+                                </TooltipProvider>
+                                }
                                 <span>{task.name}</span>
                             </div>
                         </TableCell>
                         <TableCell>
-                            {task.startDate && task.endDate ? `${format(new Date(task.startDate), 'PPP', { locale: es })} - ${format(new Date(task.endDate), 'PPP', { locale: es })}` : 'N/A'}
+                            {task.startDate ? `${format(new Date(task.startDate), 'PPP', { locale: es })} ${task.endDate ? ' - ' + format(new Date(task.endDate), 'PPP', { locale: es }) : ''}` : 'N/A'}
                         </TableCell>
-                        <TableCell>{duration > 0 ? `${duration} día${duration > 1 ? 's' : ''}` : 'N/A'}</TableCell>
+                        <TableCell>{duration > 0 ? `${duration} día${duration > 1 ? 's' : ''}` : 'Hito'}</TableCell>
                         <TableCell>
                           <Badge className={cn('text-white', statusMap[task.status].color)}>
                             {statusMap[task.status].label}
@@ -543,6 +669,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
     });
     
     const status = form.watch('status');
+    const isHeader = !form.watch('startDate') && !form.watch('endDate');
 
     React.useEffect(() => {
         if (isOpen) {
@@ -579,7 +706,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
         }
     };
 
-    const dependencyOptions = tasks.filter(task => task._id !== editingTask?._id);
+    const dependencyOptions = tasks.filter(task => task._id !== editingTask?._id && task.startDate);
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -587,7 +714,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 <DialogHeader>
                     <DialogTitle>{editingTask ? 'Editar Tarea' : 'Nueva Tarea'}</DialogTitle>
                     <DialogDescription>
-                        Complete los detalles de la tarea para el cronograma del proyecto.
+                        Complete los detalles de la tarea. Para crear un encabezado de fase, deje las fechas en blanco.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="max-h-[70vh] overflow-y-auto pr-6 pl-1 -mr-6 -ml-1">
@@ -650,127 +777,131 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                                     )}
                                 />
                             </div>
-                            <FormField
-                                control={form.control}
-                                name="status"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Estado</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                            {Object.entries(statusMap).map(([key, { label }]) => (
-                                                <SelectItem key={key} value={key}>{label}</SelectItem>
-                                            ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="assignedTo"
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Asignado a (Responsable)</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Nombre del responsable" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="progress"
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Porcentaje de Avance (%)</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" min="0" max="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="dependencies"
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-col">
-                                        <FormLabel>Dependencias</FormLabel>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                            <FormControl>
-                                                <Button
-                                                variant="outline"
-                                                role="combobox"
-                                                className={cn("w-full justify-between", !field.value?.length && "text-muted-foreground")}
-                                                >
-                                                <span className="truncate">
-                                                    {field.value?.length 
-                                                        ? `${field.value.length} tarea(s) seleccionada(s)`
-                                                        : "Seleccionar dependencias"}
-                                                </span>
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                </Button>
-                                            </FormControl>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                <Command>
-                                                    <CommandInput placeholder="Buscar tareas..." />
-                                                    <CommandList>
-                                                    <CommandEmpty>No se encontraron tareas.</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {dependencyOptions.map((option) => (
-                                                        <CommandItem
-                                                            key={option._id}
-                                                            value={option._id}
-                                                            onSelect={(currentValue) => {
-                                                                const selected = field.value || [];
-                                                                const isSelected = selected.includes(option._id!);
-                                                                const newSelection = isSelected 
-                                                                    ? selected.filter(id => id !== option._id)
-                                                                    : [...selected, option._id!];
-                                                                field.onChange(newSelection);
-                                                            }}
-                                                        >
-                                                            <Check
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                (field.value || []).includes(option._id!) ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                            />
-                                                            {option.name}
-                                                        </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            {status === 'pausada' && (
+                           {!isHeader && (
+                             <>
                                 <FormField
                                     control={form.control}
-                                    name="justification"
+                                    name="status"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Justificación de Pausa</FormLabel>
-                                            <FormControl>
-                                                <Textarea placeholder="Describa el motivo de la pausa..." {...field} />
-                                            </FormControl>
+                                            <FormLabel>Estado</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                {Object.entries(statusMap).map(([key, { label }]) => (
+                                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                                ))}
+                                                </SelectContent>
+                                            </Select>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
-                            )}
+                                <FormField
+                                    control={form.control}
+                                    name="assignedTo"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Asignado a (Responsable)</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="Nombre del responsable" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="progress"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Porcentaje de Avance (%)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" min="0" max="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="dependencies"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel>Dependencias</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    className={cn("w-full justify-between", !field.value?.length && "text-muted-foreground")}
+                                                    >
+                                                    <span className="truncate">
+                                                        {field.value?.length 
+                                                            ? `${field.value.length} tarea(s) seleccionada(s)`
+                                                            : "Seleccionar dependencias"}
+                                                    </span>
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                    <Command>
+                                                        <CommandInput placeholder="Buscar tareas..." />
+                                                        <CommandList>
+                                                        <CommandEmpty>No se encontraron tareas.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {dependencyOptions.map((option) => (
+                                                            <CommandItem
+                                                                key={option._id}
+                                                                value={option._id}
+                                                                onSelect={(currentValue) => {
+                                                                    const selected = field.value || [];
+                                                                    const isSelected = selected.includes(option._id!);
+                                                                    const newSelection = isSelected 
+                                                                        ? selected.filter(id => id !== option._id)
+                                                                        : [...selected, option._id!];
+                                                                    field.onChange(newSelection);
+                                                                }}
+                                                            >
+                                                                <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    (field.value || []).includes(option._id!) ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                                />
+                                                                {option.name}
+                                                            </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                {status === 'pausada' && (
+                                    <FormField
+                                        control={form.control}
+                                        name="justification"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Justificación de Pausa</FormLabel>
+                                                <FormControl>
+                                                    <Textarea placeholder="Describa el motivo de la pausa..." {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                             </>
+                           )}
                         </form>
                     </Form>
                 </div>
