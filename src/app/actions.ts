@@ -110,7 +110,7 @@ const ScheduleTaskSchema = z.object({
     progress: z.coerce.number().min(0).max(100).optional(),
     dependencies: z.array(z.string()).optional(),
 }).refine(data => {
-    if (data.startDate && !data.endDate) return false;
+    if (data.startDate && !data.endDate) return true; // Allow no end date for group headers
     if (!data.startDate && data.endDate) return false;
     if (data.startDate && data.endDate) return data.endDate >= data.startDate;
     return true;
@@ -558,7 +558,7 @@ export async function updateUserByAdmin(userData: AdminUpdateUserInput): Promise
 
         const { _id, password, role, ...dataToUpdate } = userData;
         
-        const updateDoc: any = { $set: { ...dataToUpdate, role } };
+        const updateDoc: any = { $set: { ...dataToUpdate, role, status: 'approved' } };
 
         if (password) {
             updateDoc.$set.password = await bcrypt.hash(password, 10);
@@ -1020,9 +1020,11 @@ export async function saveScheduleTask(task: Omit<ScheduleTask, '_id'> & { _id?:
     const db = client.db("instacheck");
     const collection = db.collection("schedule_tasks");
 
-    const dataToSave = { ...validation.data };
-    if (!dataToSave.startDate) dataToSave.startDate = undefined;
-    if (!dataToSave.endDate) dataToSave.endDate = undefined;
+    const dataToSave: Partial<ScheduleTask> = { ...validation.data };
+    if (!dataToSave.startDate) {
+        delete dataToSave.startDate;
+        delete dataToSave.endDate;
+    }
 
     if (_id) {
       // Update
@@ -1033,7 +1035,7 @@ export async function saveScheduleTask(task: Omit<ScheduleTask, '_id'> & { _id?:
       return { success: true, task: { ...dataToSave, _id } };
     } else {
       // Insert
-      const result = await collection.insertOne(dataToSave);
+      const result = await collection.insertOne(dataToSave as ScheduleTask);
       return { success: true, task: { ...dataToSave, _id: result.insertedId.toString() } };
     }
   } catch (e) {
