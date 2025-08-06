@@ -5,7 +5,7 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare } from 'lucide-react';
+import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -122,6 +122,18 @@ export default function FormPage() {
 
           {canEdit && (
             <>
+              <div>
+                <h2 className="text-xl font-semibold mb-4 text-center">Logística e Inventario</h2>
+                <div className="grid grid-cols-1">
+                    <Button asChild size="lg" variant="default" className="bg-green-600 hover:bg-green-700">
+                      <Link href="/inventory" className="h-20 text-lg flex-col md:flex-row">
+                          <PackageSearch className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                          Gestión de Inventario
+                      </Link>
+                    </Button>
+                </div>
+              </div>
+
               <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Estudios de Campo (Viabilidad)</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

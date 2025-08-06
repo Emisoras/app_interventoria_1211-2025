@@ -2,127 +2,53 @@
 'use server';
 import 'dotenv/config';
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
-import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 
 import { complianceCheck, type ComplianceCheckInput, type ComplianceCheckOutput } from '@/ai/flows/compliance-check';
 import { generateReportIntro } from '@/ai/flows/generate-activity-report-intro';
 import type { GenerateReportIntroInput, GenerateReportIntroOutput } from '@/ai/flows/schemas';
+import { 
+    SaveChecklistInputSchema,
+    UserLoginSchema,
+    UserRegisterSchema,
+    UserUpdateSchema,
+    AdminUpdateUserSchema,
+    UpdateChecklistTemplateSchema,
+    DailyActivitySchema,
+    ScheduleTaskSchema,
+    InventoryItemSchema,
+    CampusSchema,
+    type SaveChecklistInput,
+    type UserLoginInput,
+    type UserRegisterInput,
+    type UserUpdateInput,
+    type AdminUpdateUserInput,
+    type UpdateChecklistTemplateInput,
+    type DailyActivity,
+    type ScheduleTask,
+    type InventoryItem,
+} from '@/lib/schemas';
+
+
+export type { 
+    SaveChecklistInput, 
+    UserLoginInput, 
+    UserRegisterInput, 
+    UserUpdateInput, 
+    AdminUpdateUserInput,
+    ChecklistQuestion,
+    UpdateChecklistTemplateInput,
+    DailyActivity,
+    ScheduleTask,
+    ScheduleTaskStatus,
+    ScheduleTaskPriority,
+    InventoryItem,
+    InventoryItemStatus
+} from '@/lib/schemas';
+
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
-
-// Define the schema for the checklist data to be saved
-const SaveChecklistInputSchema = z.object({
-  _id: z.string().optional(),
-  contractorName: z.string(),
-  institutionName: z.string(),
-  campusName: z.string(),
-  siteType: z.string(),
-  municipality: z.string(),
-  date: z.date(),
-  inspectorName: z.string(),
-  items: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    description: z.string(),
-    observation: z.string(),
-    photoDataUri: z.string().nullable(),
-    status: z.enum(['cumple', 'no_cumple', 'parcial', 'na']),
-  })),
-  signature: z.string().nullable(),
-  // Add optional fields for the viability report content
-  viabilityAntecedentes: z.string().optional(),
-  viabilityAnalisis: z.string().optional(),
-  viabilityConclusion: z.string().optional(),
-});
-
-export type SaveChecklistInput = z.infer<typeof SaveChecklistInputSchema>;
-
-// Schemas for user authentication
-const UserLoginSchema = z.object({
-  email: z.string().email('Email inválido.'),
-  password: z.string().min(1, 'La contraseña es requerida.'),
-});
-
-const UserRegisterSchema = z.object({
-  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres.'),
-  email: z.string().email('Email inválido.'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  cedula: z.string().min(5, 'La cédula es requerida.'),
-  telefono: z.string().min(7, 'El teléfono es requerido.'),
-});
-
-const UserUpdateSchema = z.object({
-    _id: z.string(),
-    username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres.'),
-    cedula: z.string().min(5, 'La cédula es requerida.'),
-    telefono: z.string().min(7, 'El teléfono es requerido.'),
-});
-
-const AdminUpdateUserSchema = z.object({
-    _id: z.string(),
-    username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres.'),
-    cedula: z.string().min(5, 'La cédula es requerida.'),
-    telefono: z.string().min(7, 'El teléfono es requerido.'),
-    password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').optional().or(z.literal('')),
-    role: z.enum(['admin', 'editor', 'viewer', 'empleado']),
-});
-
-
-export type UserLoginInput = z.infer<typeof UserLoginSchema>;
-export type UserRegisterInput = z.infer<typeof UserRegisterSchema>;
-export type UserUpdateInput = z.infer<typeof UserUpdateSchema>;
-export type AdminUpdateUserInput = z.infer<typeof AdminUpdateUserSchema>;
-
-const ChecklistQuestionSchema = z.object({
-    id: z.string(),
-    title: z.string(),
-    description: z.string(),
-});
-export type ChecklistQuestion = z.infer<typeof ChecklistQuestionSchema>;
-
-const UpdateChecklistTemplateSchema = z.object({
-    templateName: z.string(),
-    questions: z.array(ChecklistQuestionSchema),
-});
-export type UpdateChecklistTemplateInput = z.infer<typeof UpdateChecklistTemplateSchema>;
-
-// Schema for Daily Activities
-const DailyActivitySchema = z.object({
-  _id: z.string().optional(),
-  date: z.date(),
-  description: z.string().min(1, 'La descripción es requerida.'),
-  inspectorId: z.string(),
-  inspectorName: z.string(),
-});
-export type DailyActivity = z.infer<typeof DailyActivitySchema>;
-
-const ScheduleTaskStatusSchema = z.enum(['por_iniciar', 'iniciada', 'en_ejecucion', 'pausada', 'ejecutada']);
-export type ScheduleTaskStatus = z.infer<typeof ScheduleTaskStatusSchema>;
-
-const ScheduleTaskSchema = z.object({
-    _id: z.string().optional(),
-    name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-    startDate: z.date().optional(),
-    endDate: z.date().optional(),
-    status: ScheduleTaskStatusSchema,
-    justification: z.string().optional(),
-    assignedTo: z.string().optional(),
-    progress: z.coerce.number().min(0).max(100).optional(),
-    dependencies: z.array(z.string()).optional(),
-}).refine(data => {
-    if (data.startDate && !data.endDate) return true; // Allow no end date for group headers
-    if (!data.startDate && data.endDate) return false;
-    if (data.startDate && data.endDate) return data.endDate >= data.startDate;
-    return true;
-}, {
-    message: 'La fecha de finalización debe ser posterior o igual a la de inicio.',
-    path: ['endDate'],
-}).refine(data => !(data.status === 'pausada' && (!data.justification || data.justification.trim() === '')), {
-    message: 'La justificación es requerida si el estado es "Pausada".',
-    path: ['justification'],
-});
-
-export type ScheduleTask = z.infer<typeof ScheduleTaskSchema>;
+import type { ChecklistQuestion } from '@/lib/schemas';
 
 export async function runComplianceCheck(input: ComplianceCheckInput): Promise<ComplianceCheckOutput> {
   try {
@@ -864,12 +790,6 @@ export async function getCampuses(): Promise<Campus[]> {
   }
 }
 
-const CampusSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido."),
-  institutionName: z.string(),
-  municipality: z.string().min(1, "El municipio es requerido."),
-});
-
 export async function addCampus(data: Omit<Campus, '_id' | 'id'>): Promise<{ success: boolean, campus?: any, error?: string }> {
     const validation = CampusSchema.safeParse(data);
     if (!validation.success) return { success: false, error: validation.error.errors[0].message };
@@ -1065,4 +985,170 @@ export async function deleteScheduleTask(id: string): Promise<{ success: boolean
   } finally {
     await client.close();
   }
+}
+
+// Inventory Management Actions
+export async function getInventoryItems(): Promise<InventoryItem[]> {
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("inventory");
+        const items = await collection.find({}).sort({ createdAt: -1 }).toArray();
+        return JSON.parse(JSON.stringify(items));
+    } finally {
+        await client.close();
+    }
+}
+
+export async function saveInventoryItem(item: Omit<InventoryItem, '_id'> & { _id?: string }): Promise<{ success: boolean, item?: any, error?: string }> {
+    const { _id, ...itemData } = item;
+    const validation = InventoryItemSchema.omit({_id: true}).safeParse(itemData);
+
+    if (!validation.success) {
+        return { success: false, error: validation.error.errors.map(e => e.message).join(', ') };
+    }
+
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("inventory");
+
+        // Check for duplicate serial number
+        if (itemData.serial && itemData.serial.trim() !== '') {
+            const query: any = { serial: itemData.serial };
+            if (_id) {
+                // If updating, exclude the current item from the check
+                query._id = { $ne: new ObjectId(_id) };
+            }
+            const existingSerial = await collection.findOne(query);
+            if (existingSerial) {
+                return { success: false, error: `El número de serie "${itemData.serial}" ya está registrado para otro elemento.` };
+            }
+        }
+
+
+        const dataToSave = { 
+            ...validation.data, 
+            updatedAt: new Date(),
+        };
+
+        if (_id) {
+            const result = await collection.updateOne({ _id: new ObjectId(_id) }, { $set: dataToSave });
+            if (result.matchedCount === 0) return { success: false, error: 'Elemento no encontrado.' };
+            return { success: true, item: { ...dataToSave, _id } };
+        } else {
+            const dataToInsert = { ...dataToSave, createdAt: new Date() };
+            const result = await collection.insertOne(dataToInsert as any);
+            return { success: true, item: { ...dataToInsert, _id: result.insertedId.toString() } };
+        }
+    } catch (e) {
+        console.error("Error saving inventory item:", e);
+        return { success: false, error: "Error al guardar el elemento en el inventario." };
+    } finally {
+        await client.close();
+    }
+}
+
+export async function deleteInventoryItem(id: string): Promise<{ success: boolean, error?: string }> {
+    if (!ObjectId.isValid(id)) return { success: false, error: 'ID inválido.' };
+    
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("inventory");
+        const result = await collection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) {
+            return { success: false, error: 'Elemento no encontrado.' };
+        }
+        return { success: true };
+    } catch (e) {
+        console.error("Error deleting inventory item:", e);
+        return { success: false, error: "Error al eliminar el elemento del inventario." };
+    } finally {
+        await client.close();
+    }
+}
+
+export async function bulkSaveInventoryItems(items: InventoryItem[]): Promise<{ success: boolean; error?: string; insertedCount?: number; }> {
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("inventory");
+
+        // Validate all items at once before any database operation
+        const validationResults = items.map(item => InventoryItemSchema.omit({ _id: true }).safeParse(item));
+        const invalidItems = validationResults.filter(r => !r.success);
+        if (invalidItems.length > 0) {
+            return { success: false, error: 'Algunos elementos en el archivo tienen datos inválidos. Por favor, verifique el formato.' };
+        }
+
+        const validatedItems = validationResults.map(r => (r as z.SafeParseSuccess<InventoryItem>).data);
+
+        // Check for duplicate serials within the provided list
+        const serials = validatedItems.map(item => item.serial).filter(Boolean);
+        if (serials.length > 0) {
+            const uniqueSerials = new Set(serials);
+            if (serials.length !== uniqueSerials.size) {
+                return { success: false, error: 'El archivo CSV contiene números de serie duplicados.' };
+            }
+             // Check for duplicate serials against the database
+            const existingSerials = await collection.find({ serial: { $in: serials } }).project({ serial: 1 }).toArray();
+            if (existingSerials.length > 0) {
+                const existingSerialList = existingSerials.map(s => s.serial).join(', ');
+                return { success: false, error: `Los siguientes números de serie ya existen en la base de datos: ${existingSerialList}` };
+            }
+        }
+
+
+        if (validatedItems.length === 0) {
+            return { success: false, error: 'No hay elementos válidos para importar.' };
+        }
+        
+        const itemsToInsert = validatedItems.map(item => ({
+            ...item,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        }));
+
+        const result = await collection.insertMany(itemsToInsert as any[]);
+
+        return { success: true, insertedCount: result.insertedCount };
+    } catch (e) {
+        console.error("Error in bulk save:", e);
+        return { success: false, error: "Ocurrió un error en el servidor durante la carga masiva." };
+    } finally {
+        await client.close();
+    }
+}
+
+export async function bulkUpdateInventoryItemsStatus(itemIds: string[], destination: string, status: 'entregado'): Promise<{ success: boolean, error?: string, modifiedCount?: number }> {
+    if (!itemIds || itemIds.length === 0) {
+        return { success: false, error: 'No se seleccionaron elementos.' };
+    }
+    
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("inventory");
+
+        const objectIds = itemIds.map(id => new ObjectId(id));
+
+        const result = await collection.updateMany(
+            { _id: { $in: objectIds } },
+            { $set: { destination, status, updatedAt: new Date() } }
+        );
+
+        return { success: true, modifiedCount: result.modifiedCount };
+
+    } catch (e) {
+        console.error("Error in bulk update:", e);
+        return { success: false, error: "Ocurrió un error en el servidor durante la actualización masiva." };
+    } finally {
+        await client.close();
+    }
 }

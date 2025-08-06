@@ -12,7 +12,7 @@ import { z } from 'zod';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, type ScheduleTask, ScheduleTaskStatus } from '@/app/actions';
+import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +57,7 @@ const taskSchema = z.object({
   startDate: z.date().optional(),
   endDate: z.date().optional(),
   status: z.enum(['por_iniciar', 'iniciada', 'en_ejecucion', 'pausada', 'ejecutada']),
+  priority: z.enum(['baja', 'media', 'alta', 'urgente']).optional(),
   justification: z.string().optional(),
   assignedTo: z.string().optional(),
   progress: z.coerce.number().min(0).max(100).optional(),
@@ -89,6 +90,14 @@ const statusMap: Record<ScheduleTaskStatus, { label: string; color: string; fill
   pausada: { label: 'Pausada', color: 'bg-orange-500', fill: 'hsl(var(--chart-5))' },
   ejecutada: { label: 'Ejecutada', color: 'bg-green-500', fill: 'hsl(var(--chart-2))' },
 };
+
+const priorityMap: Record<ScheduleTaskPriority, { label: string; color: string }> = {
+    baja: { label: 'Baja', color: 'bg-green-500' },
+    media: { label: 'Media', color: 'bg-yellow-500' },
+    alta: { label: 'Alta', color: 'bg-orange-500' },
+    urgente: { label: 'Urgente', color: 'bg-red-500' },
+};
+
 
 interface CustomBarProps {
   x: number;
@@ -472,6 +481,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                           domain={domain} 
                           tickFormatter={(time) => format(new Date(time), 'dd/MM/yy')}
                           scale="time"
+                          tickCount={8}
                           />
                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 12 }} />
                         <Tooltip
@@ -498,14 +508,14 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                             strokeWidth={2}
                             label={{ value: 'Hoy', position: 'top', fill: 'hsl(var(--destructive))' }}
                         />
-                        <Bar dataKey="range" name="range">
+                        <Bar dataKey="range" name="range" radius={[5, 5, 5, 5]}>
                           {chartData.map((entry, index) => (
                              <Rectangle 
                                 key={`bar-${index}`} 
-                                ref={(el) => barRefs.current.set(entry._id!, el)}
                                 {...(entry as any)}
-                                isCritical={criticalPath.includes(entry._id!)}
+                                fill={statusMap[entry.status].fill}
                                 shape={<CustomBar isCritical={criticalPath.includes(entry._id!)} payload={entry} x={0} y={0} width={0} height={0}/>}
+                                ref={(el) => barRefs.current.set(entry._id!, el)}
                               />
                           ))}
                         </Bar>
@@ -535,6 +545,8 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre de la Tarea</TableHead>
+                  <TableHead>Prioridad</TableHead>
+                  <TableHead>Responsable</TableHead>
                   <TableHead>Fechas</TableHead>
                   <TableHead>Duración</TableHead>
                   <TableHead>Estado</TableHead>
@@ -544,9 +556,9 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                 ) : tasks.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="h-24 text-center">No hay tareas en el cronograma.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay tareas en el cronograma.</TableCell></TableRow>
                 ) : (
                   tasks.map(task => {
                     const isGroupHeader = !task.startDate && !task.endDate;
@@ -557,7 +569,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                     if (isGroupHeader) {
                       return (
                          <TableRow key={task._id} className="bg-muted/60 hover:bg-muted/60">
-                            <TableCell colSpan={isReadOnly ? 5 : 6} className="font-bold">
+                            <TableCell colSpan={isReadOnly ? 7 : 8} className="font-bold">
                                 {task.name}
                             </TableCell>
                          </TableRow>
@@ -565,7 +577,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                     }
 
                     return (
-                        <TableRow key={task._id} className={isDueSoon ? 'bg-destructive/10' : ''}>
+                        <TableRow key={task._id} className={cn(isDueSoon && 'bg-destructive/10')}>
                         <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                                 {isCritical && 
@@ -583,6 +595,16 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                                 <span>{task.name}</span>
                             </div>
                         </TableCell>
+                        <TableCell>
+                            {task.priority ? (
+                                <Badge className={cn('text-white', priorityMap[task.priority].color)}>
+                                    {priorityMap[task.priority].label}
+                                </Badge>
+                            ) : (
+                                <span className="text-muted-foreground">-</span>
+                            )}
+                        </TableCell>
+                        <TableCell>{task.assignedTo || '-'}</TableCell>
                         <TableCell>
                             {task.startDate ? `${format(new Date(task.startDate), 'PPP', { locale: es })} ${task.endDate ? ' - ' + format(new Date(task.endDate), 'PPP', { locale: es }) : ''}` : 'N/A'}
                         </TableCell>
@@ -679,6 +701,8 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 endDate: editingTask.endDate ? new Date(editingTask.endDate) : undefined,
                 progress: editingTask.progress || 0,
                 dependencies: editingTask.dependencies || [],
+                priority: editingTask.priority || 'media',
+                assignedTo: editingTask.assignedTo || '',
             } : {
                 name: '',
                 startDate: new Date(),
@@ -688,6 +712,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 assignedTo: '',
                 progress: 0,
                 dependencies: [],
+                priority: 'media',
             });
         }
     }, [isOpen, editingTask, form]);
@@ -779,26 +804,48 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                             </div>
                            {!isHeader && (
                              <>
-                                <FormField
-                                    control={form.control}
-                                    name="status"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Estado</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                {Object.entries(statusMap).map(([key, { label }]) => (
-                                                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                                                ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="status"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Estado</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                    {Object.entries(statusMap).map(([key, { label }]) => (
+                                                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                                                    ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                     <FormField
+                                        control={form.control}
+                                        name="priority"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Prioridad</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue placeholder="Seleccione una prioridad" /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                    {Object.entries(priorityMap).map(([key, { label }]) => (
+                                                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                                                    ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
                                 <FormField
                                     control={form.control}
                                     name="assignedTo"
