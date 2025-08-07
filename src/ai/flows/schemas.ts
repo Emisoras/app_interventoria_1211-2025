@@ -12,5 +12,7 @@ export const GenerateReportIntroInputSchema = z.object({
 
 export type GenerateReportIntroInput = z.infer<typeof GenerateReportIntroInputSchema>;
 
-export const GenerateReportIntroOutputSchema = z.string().describe('A well-structured and detailed introduction for the report.');
+export const GenerateReportIntroOutputSchema = z.object({
+    introduction: z.string().describe('A well-structured and detailed introduction for the report.'),
+});
 export type GenerateReportIntroOutput = z.infer<typeof GenerateReportIntroOutputSchema>;

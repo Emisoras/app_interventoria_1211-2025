@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { complianceCheck, type ComplianceCheckInput, type ComplianceCheckOutput } from '@/ai/flows/compliance-check';
 import { generateReportIntro } from '@/ai/flows/generate-activity-report-intro';
-import type { GenerateReportIntroInput, GenerateReportIntroOutput } from '@/ai/flows/schemas';
+import type { GenerateReportIntroInput } from '@/ai/flows/schemas';
 import { 
     SaveChecklistInputSchema,
     UserLoginSchema,
@@ -60,7 +60,7 @@ export async function runComplianceCheck(input: ComplianceCheckInput): Promise<C
   }
 }
 
-export async function generateActivityReportIntro(input: GenerateReportIntroInput): Promise<GenerateReportIntroOutput> {
+export async function generateActivityReportIntro(input: GenerateReportIntroInput): Promise<string> {
     try {
         const result = await generateReportIntro(input);
         return result;
