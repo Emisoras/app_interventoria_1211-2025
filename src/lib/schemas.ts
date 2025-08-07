@@ -105,6 +105,7 @@ export const ScheduleTaskSchema = z.object({
     assignedTo: z.string().optional(),
     progress: z.coerce.number().min(0).max(100).optional(),
     dependencies: z.array(z.string()).optional(),
+    observations: z.string().optional(),
 }).refine(data => {
     if (data.startDate && !data.endDate) return true; // Allow no end date for milestones
     if (!data.startDate) return true; // Allow no start date for group headers

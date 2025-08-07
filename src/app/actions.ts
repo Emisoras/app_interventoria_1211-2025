@@ -987,6 +987,49 @@ export async function deleteScheduleTask(id: string): Promise<{ success: boolean
   }
 }
 
+export async function bulkSaveScheduleTasks(tasks: ScheduleTask[]): Promise<{ success: boolean; error?: string; insertedCount?: number; }> {
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("schedule_tasks");
+
+        const validationResults = tasks.map(task => ScheduleTaskSchema.omit({ _id: true }).safeParse(task));
+        const invalidItems = validationResults.filter(r => !r.success);
+        if (invalidItems.length > 0) {
+            return { success: false, error: 'Algunas tareas en el archivo tienen datos inválidos.' };
+        }
+
+        const validatedTasks = validationResults.map(r => (r as z.SafeParseSuccess<ScheduleTask>).data);
+        
+        if (validatedTasks.length === 0) {
+            return { success: false, error: 'No hay tareas válidas para importar.' };
+        }
+        
+        // Clean up tasks to prevent inserting 'undefined' values for dates
+        const tasksToInsert = validatedTasks.map(task => {
+            const cleanTask: Partial<ScheduleTask> = {...task};
+            if (cleanTask.startDate === undefined) {
+                delete cleanTask.startDate;
+            }
+            if (cleanTask.endDate === undefined) {
+                delete cleanTask.endDate;
+            }
+            return cleanTask;
+        });
+
+        const result = await collection.insertMany(tasksToInsert as any[]);
+
+        return { success: true, insertedCount: result.insertedCount };
+    } catch (e) {
+        console.error("Error in bulk save tasks:", e);
+        return { success: false, error: "Ocurrió un error en el servidor durante la carga masiva de tareas." };
+    } finally {
+        await client.close();
+    }
+}
+
+
 // Inventory Management Actions
 export async function getInventoryItems(): Promise<InventoryItem[]> {
     const client = await getDbClient();

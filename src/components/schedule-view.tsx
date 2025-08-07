@@ -2,17 +2,19 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { addDays, differenceInDays, format, startOfDay } from 'date-fns';
+import { addDays, differenceInDays, format, startOfDay, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { AlertTriangle, CalendarIcon, Edit, Loader2, Plus, Save, Trash2, X, Check, Flame, Download } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, Edit, Loader2, Plus, Save, Trash2, X, Check, Flame, Download, Upload } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine, Layer, Rectangle, Polygon } from 'recharts';
 import { z } from 'zod';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import Papa from 'papaparse';
 
-import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority } from '@/app/actions';
+
+import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, bulkSaveScheduleTasks, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +64,7 @@ const taskSchema = z.object({
   assignedTo: z.string().optional(),
   progress: z.coerce.number().min(0).max(100).optional(),
   dependencies: z.array(z.string()).optional(),
+  observations: z.string().optional(),
 }).refine(data => {
     // If it's a group header (no dates), it's valid.
     if (!data.startDate && !data.endDate) return true;
@@ -185,7 +188,8 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
   const { toast } = useToast();
   const [tasks, setTasks] = React.useState<ScheduleTask[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = React.useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = React.useState(false);
   const [editingTask, setEditingTask] = React.useState<ScheduleTask | null>(null);
   const barRefs = React.useRef<Map<string, any>>(new Map());
   const [criticalPath, setCriticalPath] = React.useState<string[]>([]);
@@ -296,7 +300,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
 
   const handleOpenDialog = (task: ScheduleTask | null = null) => {
     setEditingTask(task);
-    setIsDialogOpen(true);
+    setIsTaskDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -315,7 +319,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
         return;
     }
 
-    const headers = ["ID", "Nombre", "Fecha de Inicio", "Fecha de Fin", "Duración (días)", "Estado", "Progreso (%)", "Asignado a", "Dependencias"];
+    const headers = ["ID", "Nombre", "Fecha de Inicio", "Fecha de Fin", "Duración (días)", "Estado", "Progreso (%)", "Asignado a", "Dependencias", "Observaciones"];
     const csvRows = [headers.join(',')];
 
     const taskMap = new Map(tasks.map(t => [t._id, t.name]));
@@ -334,6 +338,7 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
             isGroupHeader ? '' : task.progress || 0,
             `"${task.assignedTo || ''}"`,
             `"${(task.dependencies || []).map(depId => taskMap.get(depId) || depId).join(', ')}"`,
+            `"${(task.observations || '').replace(/"/g, '""')}"`
         ];
         csvRows.push(values.join(','));
     }
@@ -440,6 +445,12 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
                 <CardDescription>Visualización de la línea de tiempo de las tareas del proyecto.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
+                {!isReadOnly && (
+                    <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Importar CSV
+                    </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline">
@@ -663,11 +674,16 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
       </Card>
 
       <TaskDialog 
-        isOpen={isDialogOpen} 
-        setIsOpen={setIsDialogOpen} 
+        isOpen={isTaskDialogOpen} 
+        setIsOpen={setIsTaskDialogOpen} 
         editingTask={editingTask}
         onTaskSaved={fetchTasks}
         tasks={tasks}
+      />
+      <BulkUploadDialog
+        isOpen={isBulkUploadOpen}
+        setIsOpen={setIsBulkUploadOpen}
+        onTasksUploaded={fetchTasks}
       />
     </div>
   );
@@ -703,6 +719,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 dependencies: editingTask.dependencies || [],
                 priority: editingTask.priority || 'media',
                 assignedTo: editingTask.assignedTo || '',
+                observations: editingTask.observations || '',
             } : {
                 name: '',
                 startDate: new Date(),
@@ -713,6 +730,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 progress: 0,
                 dependencies: [],
                 priority: 'media',
+                observations: '',
             });
         }
     }, [isOpen, editingTask, form]);
@@ -735,7 +753,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{editingTask ? 'Editar Tarea' : 'Nueva Tarea'}</DialogTitle>
                     <DialogDescription>
@@ -932,6 +950,19 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                                         </FormItem>
                                     )}
                                 />
+                                <FormField
+                                    control={form.control}
+                                    name="observations"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Observaciones</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Añada notas, comentarios o detalles sobre la tarea..." {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                                 {status === 'pausada' && (
                                     <FormField
                                         control={form.control}
@@ -957,6 +988,138 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                     <Button type="submit" form="task-form" disabled={isSaving}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
                         Guardar
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+interface BulkUploadDialogProps {
+    isOpen: boolean;
+    setIsOpen: (open: boolean) => void;
+    onTasksUploaded: () => void;
+}
+
+const CSV_HEADERS_ES = ["name", "startDate", "endDate", "status", "priority", "assignedTo", "progress", "dependencies", "observations"];
+
+function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded }: BulkUploadDialogProps) {
+    const { toast } = useToast();
+    const [isUploading, setIsUploading] = React.useState(false);
+    const [parsedData, setParsedData] = React.useState<ScheduleTask[]>([]);
+    const [fileName, setFileName] = React.useState('');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setFileName(file.name);
+            Papa.parse<any>(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const validData = results.data.map((row: any) => {
+                        const startDate = row.startDate ? parse(row.startDate, 'yyyy-MM-dd', new Date()) : undefined;
+                        const endDate = row.endDate ? parse(row.endDate, 'yyyy-MM-dd', new Date()) : undefined;
+                        
+                        return {
+                            name: row.name || '',
+                            startDate: startDate && !isNaN(startDate.getTime()) ? startDate : undefined,
+                            endDate: endDate && !isNaN(endDate.getTime()) ? endDate : undefined,
+                            status: Object.keys(statusMap).includes(row.status) ? row.status : 'por_iniciar',
+                            priority: Object.keys(priorityMap).includes(row.priority) ? row.priority : 'media',
+                            assignedTo: row.assignedTo || '',
+                            progress: parseInt(row.progress, 10) || 0,
+                            dependencies: row.dependencies ? row.dependencies.split(',').map((d: string) => d.trim()) : [],
+                            observations: row.observations || '',
+                        };
+                    }).filter(item => item.name);
+                    setParsedData(validData);
+                },
+                error: (error) => {
+                    toast({ variant: 'destructive', title: 'Error al leer el archivo', description: error.message });
+                    setParsedData([]);
+                }
+            });
+        }
+    };
+    
+    const handleUpload = async () => {
+        if (parsedData.length === 0) {
+            toast({ variant: 'destructive', title: 'No hay datos', description: 'No se encontraron datos válidos en el archivo para importar.' });
+            return;
+        }
+
+        setIsUploading(true);
+        const result = await bulkSaveScheduleTasks(parsedData);
+        setIsUploading(false);
+
+        if (result.success) {
+            toast({
+                title: '¡Importación Exitosa!',
+                description: `${result.insertedCount} tareas han sido agregadas al cronograma.`,
+            });
+            onTasksUploaded();
+            setIsOpen(false);
+            resetState();
+        } else {
+            toast({ variant: 'destructive', title: 'Error en la Importación', description: result.error });
+        }
+    };
+
+    const resetState = () => {
+        setParsedData([]);
+        setFileName('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) resetState(); setIsOpen(open); }}>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Importación Masiva de Tareas</DialogTitle>
+                    <DialogDescription>
+                        Suba un archivo CSV. Las columnas deben ser: {CSV_HEADERS_ES.join(', ')}. Las fechas deben estar en formato AAAA-MM-DD.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[70vh] overflow-y-auto pr-6 pl-1 -mr-6 -ml-1">
+                    <div className="py-4 space-y-4">
+                        <Input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} />
+                        {fileName && <p className="text-sm text-muted-foreground">Archivo seleccionado: {fileName}</p>}
+                        
+                        {parsedData.length > 0 && (
+                            <div className="max-h-96 overflow-y-auto border rounded-md">
+                                <h3 className="text-lg font-medium p-4">Vista Previa de Datos a Importar ({parsedData.length} filas)</h3>
+                                <Table>
+                                    <TableHeader><TableRow>{CSV_HEADERS_ES.map(h => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                                    <TableBody>
+                                        {parsedData.slice(0, 10).map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{item.name}</TableCell>
+                                                <TableCell>{item.startDate ? format(item.startDate, 'yyyy-MM-dd') : ''}</TableCell>
+                                                <TableCell>{item.endDate ? format(item.endDate, 'yyyy-MM-dd') : ''}</TableCell>
+                                                <TableCell>{item.status}</TableCell>
+                                                <TableCell>{item.priority}</TableCell>
+                                                <TableCell>{item.assignedTo}</TableCell>
+                                                <TableCell>{item.progress}</TableCell>
+                                                <TableCell>{item.dependencies?.join(', ')}</TableCell>
+                                                <TableCell>{item.observations}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <DialogFooter className="pt-4 border-t">
+                    <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
+                    <Button type="button" onClick={handleUpload} disabled={isUploading || parsedData.length === 0}>
+                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                        Confirmar e Importar
                     </Button>
                 </DialogFooter>
             </DialogContent>
