@@ -14,7 +14,7 @@ import 'jspdf-autotable';
 import Papa from 'papaparse';
 
 
-import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, bulkSaveScheduleTasks, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority } from '@/app/actions';
+import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, bulkSaveScheduleTasks, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority, ScheduleType } from '@/app/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +65,7 @@ const taskSchema = z.object({
   progress: z.coerce.number().min(0).max(100).optional(),
   dependencies: z.array(z.string()).optional(),
   observations: z.string().optional(),
+  type: z.enum(['cronograma_proyecto', 'cronograma_interventoria']),
 }).refine(data => {
     // If it's a group header (no dates), it's valid.
     if (!data.startDate && !data.endDate) return true;
@@ -184,7 +185,7 @@ const DependencyLine = ({from, to}: {from: any, to: any}) => {
 };
 
 
-export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
+export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean, scheduleType: ScheduleType }) {
   const { toast } = useToast();
   const [tasks, setTasks] = React.useState<ScheduleTask[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -196,10 +197,10 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
 
   const fetchTasks = React.useCallback(async () => {
     setLoading(true);
-    const data = await getScheduleTasks();
+    const data = await getScheduleTasks(scheduleType);
     setTasks(data);
     setLoading(false);
-  }, []);
+  }, [scheduleType]);
 
   React.useEffect(() => {
     fetchTasks();
@@ -679,11 +680,13 @@ export function ScheduleView({ isReadOnly }: { isReadOnly: boolean }) {
         editingTask={editingTask}
         onTaskSaved={fetchTasks}
         tasks={tasks}
+        scheduleType={scheduleType}
       />
       <BulkUploadDialog
         isOpen={isBulkUploadOpen}
         setIsOpen={setIsBulkUploadOpen}
         onTasksUploaded={fetchTasks}
+        scheduleType={scheduleType}
       />
     </div>
   );
@@ -696,9 +699,10 @@ interface TaskDialogProps {
     editingTask: ScheduleTask | null;
     onTaskSaved: () => void;
     tasks: ScheduleTask[];
+    scheduleType: ScheduleType;
 }
 
-function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: TaskDialogProps) {
+function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks, scheduleType }: TaskDialogProps) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = React.useState(false);
     
@@ -720,6 +724,7 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 priority: editingTask.priority || 'media',
                 assignedTo: editingTask.assignedTo || '',
                 observations: editingTask.observations || '',
+                type: scheduleType,
             } : {
                 name: '',
                 startDate: new Date(),
@@ -731,9 +736,10 @@ function TaskDialog({ isOpen, setIsOpen, editingTask, onTaskSaved, tasks }: Task
                 dependencies: [],
                 priority: 'media',
                 observations: '',
+                type: scheduleType,
             });
         }
-    }, [isOpen, editingTask, form]);
+    }, [isOpen, editingTask, form, scheduleType]);
 
     const onSubmit = async (data: TaskFormData) => {
         setIsSaving(true);
@@ -1000,11 +1006,12 @@ interface BulkUploadDialogProps {
     isOpen: boolean;
     setIsOpen: (open: boolean) => void;
     onTasksUploaded: () => void;
+    scheduleType: ScheduleType;
 }
 
 const CSV_HEADERS_ES = ["name", "startDate", "endDate", "status", "priority", "assignedTo", "progress", "dependencies", "observations"];
 
-function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded }: BulkUploadDialogProps) {
+function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded, scheduleType }: BulkUploadDialogProps) {
     const { toast } = useToast();
     const [isUploading, setIsUploading] = React.useState(false);
     const [parsedData, setParsedData] = React.useState<ScheduleTask[]>([]);
@@ -1033,6 +1040,7 @@ function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded }: BulkUploadDial
                             progress: parseInt(row.progress, 10) || 0,
                             dependencies: row.dependencies ? row.dependencies.split(',').map((d: string) => d.trim()) : [],
                             observations: row.observations || '',
+                            type: scheduleType,
                         };
                     }).filter(item => item.name);
                     setParsedData(validData);
@@ -1052,7 +1060,7 @@ function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded }: BulkUploadDial
         }
 
         setIsUploading(true);
-        const result = await bulkSaveScheduleTasks(parsedData);
+        const result = await bulkSaveScheduleTasks(parsedData, scheduleType);
         setIsUploading(false);
 
         if (result.success) {

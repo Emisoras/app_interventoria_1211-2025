@@ -5,7 +5,7 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch } from 'lucide-react';
+import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch, ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -103,11 +103,17 @@ export default function FormPage() {
           {(canEdit || isViewerOrEmpleado) && (
              <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Planificación y Seguimiento</h2>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Button asChild size="lg" variant="secondary">
                           <Link href="/schedule" className="h-20 text-lg flex-col md:flex-row">
                               <GanttChartSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
                               Cronograma del Proyecto
+                          </Link>
+                      </Button>
+                      <Button asChild size="lg" variant="secondary">
+                          <Link href="/oversight-schedule" className="h-20 text-lg flex-col md:flex-row">
+                              <ClipboardCheck className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Cronograma de Interventoría
                           </Link>
                       </Button>
                       <Button asChild size="lg" variant="secondary">

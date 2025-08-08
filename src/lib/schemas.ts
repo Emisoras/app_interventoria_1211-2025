@@ -93,6 +93,9 @@ export type ScheduleTaskStatus = z.infer<typeof ScheduleTaskStatusSchema>;
 export const ScheduleTaskPrioritySchema = z.enum(['baja', 'media', 'alta', 'urgente']);
 export type ScheduleTaskPriority = z.infer<typeof ScheduleTaskPrioritySchema>;
 
+export const ScheduleTypeSchema = z.enum(['cronograma_proyecto', 'cronograma_interventoria']);
+export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
+
 
 export const ScheduleTaskSchema = z.object({
     _id: z.string().optional(),
@@ -106,6 +109,7 @@ export const ScheduleTaskSchema = z.object({
     progress: z.coerce.number().min(0).max(100).optional(),
     dependencies: z.array(z.string()).optional(),
     observations: z.string().optional(),
+    type: ScheduleTypeSchema,
 }).refine(data => {
     if (data.startDate && !data.endDate) return true; // Allow no end date for milestones
     if (!data.startDate) return true; // Allow no start date for group headers

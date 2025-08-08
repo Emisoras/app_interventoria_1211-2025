@@ -1,4 +1,4 @@
-// src/app/schedule/page.tsx
+// src/app/oversight-schedule/page.tsx
 'use client';
 
 import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-export default function SchedulePage() {
+export default function OversightSchedulePage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-4">
             <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
             <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
-              Cronograma de Actividades del Proyecto
+              Cronograma de Interventoría
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -72,7 +72,7 @@ export default function SchedulePage() {
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
         <SuspenseWrapper>
-            <ScheduleView isReadOnly={isReadOnly} scheduleType='cronograma_proyecto' />
+            <ScheduleView isReadOnly={isReadOnly} scheduleType='cronograma_interventoria' />
         </SuspenseWrapper>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">

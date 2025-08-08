@@ -28,6 +28,7 @@ import {
     type DailyActivity,
     type ScheduleTask,
     type InventoryItem,
+    type ScheduleType,
 } from '@/lib/schemas';
 
 
@@ -44,7 +45,8 @@ export type {
     ScheduleTaskStatus,
     ScheduleTaskPriority,
     InventoryItem,
-    InventoryItemStatus
+    InventoryItemStatus,
+    ScheduleType
 } from '@/lib/schemas';
 
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
@@ -62,8 +64,8 @@ export async function runComplianceCheck(input: ComplianceCheckInput): Promise<C
 
 export async function generateActivityReportIntro(input: GenerateReportIntroInput): Promise<string> {
     try {
-        const result = await generateReportIntro(input);
-        return result;
+        const { introduction } = await generateReportIntro(input);
+        return introduction;
     } catch (error) {
         console.error('Error generating report intro:', error);
         return 'No se pudo generar la introducción para el informe de actividades.';
@@ -912,14 +914,13 @@ export async function deleteDailyActivity(id: string): Promise<{ success: boolea
 }
 
 // Schedule Task Actions
-export async function getScheduleTasks(): Promise<ScheduleTask[]> {
+export async function getScheduleTasks(type: ScheduleType): Promise<ScheduleTask[]> {
   const client = await getDbClient();
   try {
     await client.connect();
     const db = client.db("instacheck");
     const collection = db.collection("schedule_tasks");
-    // Sort manually in code to allow for grouping headers
-    const tasks = await collection.find({}).toArray();
+    const tasks = await collection.find({ type: type }).toArray();
     return JSON.parse(JSON.stringify(tasks));
   } finally {
     await client.close();
@@ -987,14 +988,14 @@ export async function deleteScheduleTask(id: string): Promise<{ success: boolean
   }
 }
 
-export async function bulkSaveScheduleTasks(tasks: ScheduleTask[]): Promise<{ success: boolean; error?: string; insertedCount?: number; }> {
+export async function bulkSaveScheduleTasks(tasks: ScheduleTask[], type: ScheduleType): Promise<{ success: boolean; error?: string; insertedCount?: number; }> {
     const client = await getDbClient();
     try {
         await client.connect();
         const db = client.db("instacheck");
         const collection = db.collection("schedule_tasks");
 
-        const validationResults = tasks.map(task => ScheduleTaskSchema.omit({ _id: true }).safeParse(task));
+        const validationResults = tasks.map(task => ScheduleTaskSchema.omit({ _id: true, type: true }).safeParse(task));
         const invalidItems = validationResults.filter(r => !r.success);
         if (invalidItems.length > 0) {
             return { success: false, error: 'Algunas tareas en el archivo tienen datos inválidos.' };
@@ -1006,9 +1007,8 @@ export async function bulkSaveScheduleTasks(tasks: ScheduleTask[]): Promise<{ su
             return { success: false, error: 'No hay tareas válidas para importar.' };
         }
         
-        // Clean up tasks to prevent inserting 'undefined' values for dates
         const tasksToInsert = validatedTasks.map(task => {
-            const cleanTask: Partial<ScheduleTask> = {...task};
+            const cleanTask: Partial<ScheduleTask> = { ...task, type };
             if (cleanTask.startDate === undefined) {
                 delete cleanTask.startDate;
             }
