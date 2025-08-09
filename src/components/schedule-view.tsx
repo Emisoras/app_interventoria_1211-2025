@@ -86,6 +86,8 @@ const taskSchema = z.object({
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
+type HierarchicalTask = ScheduleTask & { children: HierarchicalTask[], level: number };
+
 
 const statusMap: Record<ScheduleTaskStatus, { label: string; color: string; fill: string }> = {
   por_iniciar: { label: 'Por Iniciar', color: 'bg-gray-500', fill: 'hsl(var(--muted-foreground))' },
@@ -194,6 +196,67 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
   const [editingTask, setEditingTask] = React.useState<ScheduleTask | null>(null);
   const barRefs = React.useRef<Map<string, any>>(new Map());
   const [criticalPath, setCriticalPath] = React.useState<string[]>([]);
+  
+  const processedTasks = React.useMemo(() => {
+    const buildHierarchy = (tasks: ScheduleTask[]): HierarchicalTask[] => {
+        const taskMap = new Map<string, HierarchicalTask>();
+        tasks.forEach(task => taskMap.set(task._id!, { ...task, children: [], level: 0 }));
+    
+        const roots: HierarchicalTask[] = [];
+    
+        taskMap.forEach(task => {
+            if (task.dependencies && task.dependencies.length > 0 && taskMap.has(task.dependencies[0])) {
+                const parent = taskMap.get(task.dependencies[0]);
+                if (parent) {
+                    parent.children.push(task);
+                } else {
+                    roots.push(task); // Dependency points to a non-existent task, treat as root
+                }
+            } else {
+                roots.push(task);
+            }
+        });
+        
+        const nonRootIds = new Set<string>();
+        roots.forEach(root => {
+            root.children.forEach(child => nonRootIds.add(child._id!));
+        });
+
+        const finalRoots = roots
+            .filter(task => !nonRootIds.has(task._id!))
+            .sort((a, b) => {
+                if (a.startDate && b.startDate) return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+                if (a.startDate) return -1;
+                if (b.startDate) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+        return finalRoots;
+    };
+
+    const flattenTasks = (tasks: HierarchicalTask[], level = 0): HierarchicalTask[] => {
+        let result: HierarchicalTask[] = [];
+        for (const task of tasks) {
+            result.push({ ...task, level });
+            if (task.children.length > 0) {
+                 // Sort children by start date before processing
+                task.children.sort((a, b) => {
+                    if (a.startDate && b.startDate) return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+                    if (a.startDate) return -1;
+                    if (b.startDate) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+                result = result.concat(flattenTasks(task.children, level + 1));
+            }
+        }
+        return result;
+    };
+    
+    const hierarchicalTasks = buildHierarchy(tasks);
+    return flattenTasks(hierarchicalTasks);
+
+  }, [tasks]);
+
 
   const fetchTasks = React.useCallback(async () => {
     setLoading(true);
@@ -410,11 +473,10 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
   };
 
   const chartData = React.useMemo(() => {
-    return tasks
-      .filter(task => task.startDate) // Only include tasks with a start date
+    return [...processedTasks]
+      .filter(task => task.startDate) 
       .map((task) => {
           const startDate = startOfDay(new Date(task.startDate!));
-          // For milestones, endDate might be null, so we use startDate
           const endDate = startOfDay(new Date(task.endDate || task.startDate!));
           
           return {
@@ -422,7 +484,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
             range: [startDate.getTime(), endDate.getTime()],
           };
       });
-  }, [tasks]);
+  }, [processedTasks]);
   
   const domain: [number, number] = React.useMemo(() => {
       const taskNodes = tasks.filter(task => task.startDate);
@@ -435,6 +497,34 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
       return [Math.min(...startDates), Math.max(...endDates)];
   }, [tasks]);
 
+  const renderCustomizedLabel = (props: any) => {
+    const { x, y, width, height, value, payload } = props;
+    const task = processedTasks.find(t => t.name === payload.value);
+    const level = task?.level || 0;
+    const text = payload.value;
+    const charLimit = 50; // Character limit before wrapping
+
+    let textLines = [text];
+    if (text.length > charLimit) {
+        let breakPoint = text.lastIndexOf(' ', charLimit);
+        if (breakPoint === -1) breakPoint = charLimit;
+        textLines = [text.substring(0, breakPoint), text.substring(breakPoint + 1)];
+    }
+
+    const xPos = 5 + (level * 20);
+
+    return (
+        <g>
+            <text x={xPos} y={y} dy={textLines.length > 1 ? 0 : 4} textAnchor="start" fill="#666" fontSize={12}>
+                {textLines.map((line, index) => (
+                    <tspan key={index} x={xPos} dy={index > 0 ? '1.2em' : 0}>{line}</tspan>
+                ))}
+            </text>
+        </g>
+    );
+};
+
+const ganttHeight = processedTasks.length * 50 + 50;
 
   return (
     <div className="space-y-8">
@@ -474,74 +564,80 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
             </div>
           </div>
         </CardHeader>
-        <CardContent className="h-[400px] w-full">
+        <CardContent className="w-full">
             {loading ? (
-                <div className="flex justify-center items-center h-full">
+                <div className="flex justify-center items-center h-[600px]">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
             ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={chartData}
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        barCategoryGap="35%"
-                    >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                        <XAxis 
-                          type="number" 
-                          domain={domain} 
-                          tickFormatter={(time) => format(new Date(time), 'dd/MM/yy')}
-                          scale="time"
-                          tickCount={8}
-                          />
-                        <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 12 }} />
-                        <Tooltip
-                            contentStyle={{
-                                background: 'hsl(var(--background))',
-                                border: '1px solid hsl(var(--border))'
-                            }}
-                            labelStyle={{ color: 'hsl(var(--foreground))' }}
-                            formatter={(value: any, name: string, props: any) => {
-                                if (name === 'range') {
-                                    const duration = differenceInDays(new Date(value[1]), new Date(value[0]));
-                                    if(duration <= 0) return `Hito: ${format(new Date(value[0]), 'PPP', { locale: es })}`;
-                                    return `${format(new Date(value[0]), 'PPP', { locale: es })} - ${format(new Date(value[1]), 'PPP', { locale: es })}`;
-                                }
-                                if (name === 'progress') {
-                                    return `${value}%`;
-                                }
-                                return value;
-                            }}
-                        />
-                        <ReferenceLine 
-                            x={new Date().getTime()} 
-                            stroke="hsl(var(--destructive))" 
-                            strokeWidth={2}
-                            label={{ value: 'Hoy', position: 'top', fill: 'hsl(var(--destructive))' }}
-                        />
-                        <Bar dataKey="range" name="range" radius={[5, 5, 5, 5]}>
-                          {chartData.map((entry, index) => (
-                             <Rectangle 
-                                key={`bar-${index}`} 
-                                {...(entry as any)}
-                                fill={statusMap[entry.status].fill}
-                                shape={<CustomBar isCritical={criticalPath.includes(entry._id!)} payload={entry} x={0} y={0} width={0} height={0}/>}
-                                ref={(el) => barRefs.current.set(entry._id!, el)}
-                              />
-                          ))}
-                        </Bar>
-                         <Layer>
-                            {chartData.map(task => 
-                                task.dependencies?.map(depId => {
-                                    const fromTaskRef = barRefs.current.get(depId);
-                                    const toTaskRef = barRefs.current.get(task._id!);
-                                    return <DependencyLine key={`${depId}-${task._id}`} from={fromTaskRef} to={toTaskRef} />
-                                })
-                            )}
-                        </Layer>
-                    </BarChart>
-                </ResponsiveContainer>
+                <div className="w-full h-full max-h-[600px] overflow-auto">
+                    <ResponsiveContainer width={2000} height={ganttHeight}>
+                        <BarChart
+                            data={chartData.reverse()}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            barCategoryGap="35%"
+                        >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                            <XAxis 
+                            type="number" 
+                            domain={domain} 
+                            tickFormatter={(time) => format(new Date(time), 'dd/MM/yy')}
+                            scale="time"
+                            tickCount={200}
+                            />
+                            <YAxis 
+                            dataKey="name" 
+                            type="category" 
+                            width={500}
+                            tick={renderCustomizedLabel} />
+                            <Tooltip
+                                contentStyle={{
+                                    background: 'hsl(var(--background))',
+                                    border: '1px solid hsl(var(--border))'
+                                }}
+                                labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                formatter={(value: any, name: string, props: any) => {
+                                    if (name === 'range') {
+                                        const duration = differenceInDays(new Date(value[1]), new Date(value[0]));
+                                        if(duration <= 0) return `Hito: ${format(new Date(value[0]), 'PPP', { locale: es })}`;
+                                        return `${format(new Date(value[0]), 'PPP', { locale: es })} - ${format(new Date(value[1]), 'PPP', { locale: es })}`;
+                                    }
+                                    if (name === 'progress') {
+                                        return `${value}%`;
+                                    }
+                                    return value;
+                                }}
+                            />
+                            <ReferenceLine 
+                                x={new Date().getTime()} 
+                                stroke="hsl(var(--destructive))" 
+                                strokeWidth={2}
+                                label={{ value: 'Hoy', position: 'top', fill: 'hsl(var(--destructive))' }}
+                            />
+                            <Bar dataKey="range" name="range" radius={[5, 5, 5, 5]}>
+                            {chartData.map((entry, index) => (
+                                <Rectangle 
+                                    key={`bar-${index}`} 
+                                    {...(entry as any)}
+                                    fill={statusMap[entry.status].fill}
+                                    shape={<CustomBar isCritical={criticalPath.includes(entry._id!)} payload={entry} x={0} y={0} width={0} height={0}/>}
+                                    ref={(el) => barRefs.current.set(entry._id!, el)}
+                                />
+                            ))}
+                            </Bar>
+                            <Layer>
+                                {chartData.map(task => 
+                                    task.dependencies?.map(depId => {
+                                        const fromTaskRef = barRefs.current.get(depId);
+                                        const toTaskRef = barRefs.current.get(task._id!);
+                                        return <DependencyLine key={`${depId}-${task._id}`} from={fromTaskRef} to={toTaskRef} />
+                                    })
+                                )}
+                            </Layer>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             )}
         </CardContent>
       </Card>
@@ -569,10 +665,10 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                ) : tasks.length === 0 ? (
+                ) : processedTasks.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay tareas en el cronograma.</TableCell></TableRow>
                 ) : (
-                  tasks.map(task => {
+                  processedTasks.map(task => {
                     const isGroupHeader = !task.startDate && !task.endDate;
                     const duration = task.startDate && task.endDate ? differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1 : 0;
                     const isDueSoon = duration > 0 && task.endDate && differenceInDays(new Date(task.endDate), new Date()) <= 10 && task.status !== 'ejecutada';
@@ -582,7 +678,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
                       return (
                          <TableRow key={task._id} className="bg-muted/60 hover:bg-muted/60">
                             <TableCell colSpan={isReadOnly ? 7 : 8} className="font-bold">
-                                {task.name}
+                               <span style={{ paddingLeft: `${task.level * 20}px` }}>{task.name}</span>
                             </TableCell>
                          </TableRow>
                       )
@@ -591,7 +687,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
                     return (
                         <TableRow key={task._id} className={cn(isDueSoon && 'bg-destructive/10')}>
                         <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2" style={{ paddingLeft: `${task.level * 20}px` }}>
                                 {isCritical && 
                                 <TooltipProvider>
                                     <UiTooltip>

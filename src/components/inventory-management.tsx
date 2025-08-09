@@ -225,7 +225,7 @@ export function InventoryManagement({ isReadOnly }: { isReadOnly: boolean }) {
             doc.text(title, x, y + 5);
         }
         
-        addSignatureBlock('Firma Contratista (Entrega)', margin, yPos);
+        addSignatureBlock('Firma Operador (Entrega)', margin, yPos);
         addSignatureBlock('Firma Interventoría (Recibe)', margin + signatureBlockWidth + margin, yPos, signature);
         
         yPos += 30;

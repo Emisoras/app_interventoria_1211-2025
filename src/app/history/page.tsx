@@ -21,7 +21,7 @@ import { SuspenseWrapper } from '@/components/suspense-wrapper';
 type ChecklistSummary = {
   _id: string;
   campusName: string;
-  contractorName: string;
+  operatorName: string;
   institutionName: string;
   inspectorName: string;
   date: string;
@@ -102,7 +102,7 @@ function HistoryPageContent() {
       return (
         item.campusName.toLowerCase().includes(lowercasedFilter) ||
         (item.institutionName && item.institutionName.toLowerCase().includes(lowercasedFilter)) ||
-        item.contractorName.toLowerCase().includes(lowercasedFilter) ||
+        item.operatorName.toLowerCase().includes(lowercasedFilter) ||
         item.inspectorName.toLowerCase().includes(lowercasedFilter)
       );
     });
@@ -123,7 +123,7 @@ function HistoryPageContent() {
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por sede, contratista..."
+                  placeholder="Buscar por sede, operador..."
                   className="pl-9"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -138,7 +138,7 @@ function HistoryPageContent() {
                     <TableRow>
                     <TableHead>Sede Educativa / Junta</TableHead>
                     <TableHead>Institución</TableHead>
-                    <TableHead>Contratista</TableHead>
+                    <TableHead>Operador</TableHead>
                     <TableHead>Interventor</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
@@ -163,7 +163,7 @@ function HistoryPageContent() {
                         <TableRow key={checklist._id}>
                         <TableCell className="font-medium">{checklist.campusName}</TableCell>
                         <TableCell>{checklist.institutionName || 'N/A'}</TableCell>
-                        <TableCell>{checklist.contractorName}</TableCell>
+                        <TableCell>{checklist.operatorName}</TableCell>
                         <TableCell>{checklist.inspectorName}</TableCell>
                         <TableCell>{format(new Date(checklist.date), 'PPP', { locale: es })}</TableCell>
                         <TableCell className="text-right">

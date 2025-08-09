@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: 'Syntrix Software de Interventoria',
-  description: 'Checklist de evaluación para contratistas',
+  description: 'Checklist de evaluación para operadores',
   icons: {
     icon: '/icon.png',
     shortcut: '/shortcut-icon.png',

@@ -248,7 +248,7 @@ export async function getChecklists() {
     const checklists = await collection.find({}, { 
       projection: { 
         campusName: 1, 
-        contractorName: 1, 
+        operatorName: 1, 
         date: 1,
         institutionName: 1,
         inspectorName: 1,
@@ -617,8 +617,8 @@ export async function updateChecklistTemplate(input: UpdateChecklistTemplateInpu
     }
 }
 
-// Data Management Actions (Contractors, Institutions, Campuses)
-export interface Contractor {
+// Data Management Actions (Operators, Institutions, Campuses)
+export interface Operator {
     _id: string; // From MongoDB
     id?: number; // Optional original ID
     name: string;
@@ -653,63 +653,64 @@ async function seedData<T>(db: any, collectionName: string, initialData: T[], na
   }
 }
 
-// Contractor Actions
-export async function getContractors(): Promise<Contractor[]> {
+// Operator Actions
+export async function getOperators(): Promise<Operator[]> {
   const client = await getDbClient();
   try {
     await client.connect();
     const db = client.db("instacheck");
-    const collection = db.collection("contractors");
-    const contractors = await collection.find({}).sort({ name: 1 }).toArray();
-    return JSON.parse(JSON.stringify(contractors));
+    const collection = db.collection("operators");
+    const operators = await collection.find({}).sort({ name: 1 }).toArray();
+    return JSON.parse(JSON.stringify(operators));
   } finally {
     await client.close();
   }
 }
 
-export async function addContractor(name: string): Promise<{ success: boolean, contractor?: any, error?: string }> {
+export async function addOperator(name: string): Promise<{ success: boolean, operator?: any, error?: string }> {
     if (!name || name.trim().length === 0) return { success: false, error: "El nombre es requerido." };
     const client = await getDbClient();
     try {
         await client.connect();
         const db = client.db("instacheck");
-        const collection = db.collection("contractors");
-        const newContractor = { name, createdAt: new Date(), updatedAt: new Date() };
-        const result = await collection.insertOne(newContractor);
-        return { success: true, contractor: { ...newContractor, _id: result.insertedId } };
+        const collection = db.collection("operators");
+        const newOperator = { name, createdAt: new Date(), updatedAt: new Date() };
+        const result = await collection.insertOne(newOperator);
+        const savedOperator = await collection.findOne({ _id: result.insertedId });
+        return { success: true, operator: JSON.parse(JSON.stringify(savedOperator)) };
     } catch (e) {
-        return { success: false, error: "Error al agregar contratista." };
+        return { success: false, error: "Error al agregar operador." };
     } finally {
         await client.close();
     }
 }
 
-export async function updateContractor(id: string, name: string): Promise<{ success: boolean, error?: string }> {
+export async function updateOperator(id: string, name: string): Promise<{ success: boolean, error?: string }> {
     if (!name || name.trim().length === 0) return { success: false, error: "El nombre es requerido." };
     const client = await getDbClient();
     try {
         await client.connect();
         const db = client.db("instacheck");
-        const collection = db.collection("contractors");
+        const collection = db.collection("operators");
         const result = await collection.updateOne({ _id: new ObjectId(id) }, { $set: { name, updatedAt: new Date() } });
         return { success: result.matchedCount > 0 };
     } catch (e) {
-        return { success: false, error: "Error al actualizar contratista." };
+        return { success: false, error: "Error al actualizar operador." };
     } finally {
         await client.close();
     }
 }
 
-export async function deleteContractor(id: string): Promise<{ success: boolean, error?: string }> {
+export async function deleteOperator(id: string): Promise<{ success: boolean, error?: string }> {
     const client = await getDbClient();
     try {
         await client.connect();
         const db = client.db("instacheck");
-        const collection = db.collection("contractors");
+        const collection = db.collection("operators");
         const result = await collection.deleteOne({ _id: new ObjectId(id) });
         return { success: result.deletedCount > 0 };
     } catch (e) {
-        return { success: false, error: "Error al eliminar contratista." };
+        return { success: false, error: "Error al eliminar operador." };
     } finally {
         await client.close();
     }
@@ -738,7 +739,8 @@ export async function addInstitution(name: string): Promise<{ success: boolean, 
         const collection = db.collection("institutions");
         const newInstitution = { name, createdAt: new Date(), updatedAt: new Date() };
         const result = await collection.insertOne(newInstitution);
-        return { success: true, institution: { ...newInstitution, _id: result.insertedId } };
+        const savedInstitution = await collection.findOne({ _id: result.insertedId });
+        return { success: true, institution: JSON.parse(JSON.stringify(savedInstitution)) };
     } catch (e) {
         return { success: false, error: "Error al agregar institución." };
     } finally {
@@ -802,7 +804,8 @@ export async function addCampus(data: Omit<Campus, '_id' | 'id'>): Promise<{ suc
         const collection = db.collection("campuses");
         const newCampus = { ...validation.data, createdAt: new Date(), updatedAt: new Date() };
         const result = await collection.insertOne(newCampus);
-        return { success: true, campus: { ...newCampus, _id: result.insertedId } };
+        const savedCampus = await collection.findOne({ _id: result.insertedId });
+        return { success: true, campus: JSON.parse(JSON.stringify(savedCampus)) };
     } catch (e) {
         return { success: false, error: "Error al agregar sede/junta." };
     } finally {

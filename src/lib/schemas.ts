@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Define the schema for the checklist data to be saved
 export const SaveChecklistInputSchema = z.object({
   _id: z.string().optional(),
-  contractorName: z.string(),
+  operatorName: z.string(),
   institutionName: z.string(),
   campusName: z.string(),
   siteType: z.string(),

@@ -15,8 +15,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import { z } from 'zod';
 
 import type { ComplianceCheckOutput } from '@/ai/flows/compliance-check';
-import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getContractors, addContractor, updateContractor, deleteContractor, getCampuses, addCampus, updateCampus, deleteCampus, type ChecklistQuestion } from '@/app/actions';
-import type { Contractor } from '@/lib/contractors-data';
+import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getOperators, addOperator, updateOperator, deleteOperator, getCampuses, addCampus, updateCampus, deleteCampus, type ChecklistQuestion } from '@/app/actions';
+import type { Operator } from '@/app/actions';
 import type { Campus } from '@/lib/campus-data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 
 const formSchema = z.object({
   _id: z.string().optional(),
-  contractorName: z.string().min(1, 'El nombre es requerido.'),
+  operatorName: z.string().min(1, 'El nombre es requerido.'),
   institutionName: z.string(), // Not required for Junta
   campusName: z.string().min(1, 'El nombre de la junta es requerido.'),
   siteType: z.string({ required_error: 'El tipo de sitio es requerido.' }),
@@ -52,7 +52,7 @@ const formSchema = z.object({
 });
 
 
-type ContractorFormData = z.infer<typeof formSchema>;
+type OperatorFormData = z.infer<typeof formSchema>;
 
 type ComplianceStatus = 'cumple' | 'no_cumple' | 'parcial' | 'na';
 
@@ -73,7 +73,7 @@ const checklists = {
 
 
 const initialFormState = {
-    contractorName: '',
+    operatorName: '',
     institutionName: '',
     campusName: '',
     municipality: '',
@@ -98,11 +98,11 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [signature, setSignature] = React.useState<string | null>(null);
 
-  const [contractors, setContractors] = React.useState<Contractor[]>([]);
-  const [openContractorsPopover, setOpenContractorsPopover] = React.useState(false);
-  const [isManageContractorsOpen, setIsManageContractorsOpen] = React.useState(false);
-  const [newContractorName, setNewContractorName] = React.useState('');
-  const [editingContractor, setEditingContractor] = React.useState<Contractor | null>(null);
+  const [operators, setOperators] = React.useState<Operator[]>([]);
+  const [openOperatorsPopover, setOpenOperatorsPopover] = React.useState(false);
+  const [isManageOperatorsOpen, setIsManageOperatorsOpen] = React.useState(false);
+  const [newOperatorName, setNewOperatorName] = React.useState('');
+  const [editingOperator, setEditingOperator] = React.useState<Operator | null>(null);
 
   const [campuses, setCampuses] = React.useState<Campus[]>([]);
   const [openCampusesPopover, setOpenCampusesPopover] = React.useState(false);
@@ -110,17 +110,20 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
   const [newCampus, setNewCampus] = React.useState({ name: '', municipality: ''});
   const [editingCampus, setEditingCampus] = React.useState<Campus | null>(null);
 
-  const form = useForm<ContractorFormData>({
+  const form = useForm<OperatorFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: initialFormState,
   });
 
-  const getViabilityReportDefaultContent = (formData: ContractorFormData) => {
-    const institutionText = `la Junta de Internet ${formData.campusName}`;
+  const getViabilityReportDefaultContent = (formData: OperatorFormData) => {
+    const institutionText = '';
+    const siteText = `la Junta de Internet ${formData.campusName}`;
+    const conclusionSiteText = `la Junta de Internet ${formData.campusName}`;
+
     return {
-      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para ${institutionText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico, los cuales se detallan a continuación.`,
-      analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El contratista realizo a satisfacción el Estudio de Campo para ${institutionText} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
-      conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para ${institutionText} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.`
+      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
+      analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El operador realizo a satisfacción el Estudio de Campo para ${institutionText}${siteText} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
+      conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para la ${conclusionSiteText} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.\n• Archivo Anexo ${formData.campusName.replace(/ /g, '_')}.pdf`
     };
   };
 
@@ -129,11 +132,11 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
   const [viabilityConclusion, setViabilityConclusion] = React.useState('');
 
     const fetchDropdownData = React.useCallback(async () => {
-        const [contractorsData, campusesData] = await Promise.all([
-            getContractors(),
+        const [operatorsData, campusesData] = await Promise.all([
+            getOperators(),
             getCampuses(),
         ]);
-        setContractors(contractorsData);
+        setOperators(operatorsData);
         setCampuses(campusesData);
     }, []);
   
@@ -179,7 +182,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
 
   React.useEffect(() => {
     const subscription = form.watch((value) => {
-      const defaults = getViabilityReportDefaultContent(value as ContractorFormData);
+      const defaults = getViabilityReportDefaultContent(value as OperatorFormData);
       setViabilityAntecedentes(defaults.antecedentes);
       setViabilityAnalisis(defaults.analisis);
       setViabilityConclusion(defaults.conclusion);
@@ -238,33 +241,33 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
     }
   };
 
-  const handleAddContractor = async () => {
-    if (newContractorName.trim()) {
-      const result = await addContractor(newContractorName.trim());
+  const handleAddOperator = async () => {
+    if (newOperatorName.trim()) {
+      const result = await addOperator(newOperatorName.trim());
       if (result.success) {
-        setContractors([...contractors, result.contractor]);
-        setNewContractorName('');
+        setOperators([...operators, result.operator]);
+        setNewOperatorName('');
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
     }
   };
 
-  const handleDeleteContractor = async (id: string) => {
-    const result = await deleteContractor(id);
+  const handleDeleteOperator = async (id: string) => {
+    const result = await deleteOperator(id);
     if (result.success) {
-      setContractors(contractors.filter((c) => c._id !== id));
+      setOperators(operators.filter((c) => c._id !== id));
     } else {
       toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
   };
 
-  const handleUpdateContractor = async () => {
-    if (editingContractor && editingContractor.name.trim()) {
-      const result = await updateContractor(editingContractor._id, editingContractor.name.trim());
+  const handleUpdateOperator = async () => {
+    if (editingOperator && editingOperator.name.trim()) {
+      const result = await updateOperator(editingOperator._id, editingOperator.name.trim());
       if (result.success) {
         await fetchDropdownData();
-        setEditingContractor(null);
+        setEditingOperator(null);
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
@@ -355,7 +358,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
         imageToDataUri(footerImageUrl),
       ]);
 
-      const contractorInfo = form.getValues();
+      const operatorInfo = form.getValues();
       const doc = new jsPDF();
 
       const pageWidth = doc.internal.pageSize.width;
@@ -420,9 +423,9 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
       const splitProjectText = doc.splitTextToSize(projectText, contentWidth);
       doc.text(splitProjectText, margin, yPos);
       yPos += (splitProjectText.length * 5) + 2;
-      doc.text(`Contratista: ${contractorInfo.contractorName}`, margin, yPos);
+      doc.text(`Operador: ${operatorInfo.operatorName}`, margin, yPos);
       yPos += 5;
-      doc.text(`Interventor: ${contractorInfo.inspectorName}`, margin, yPos);
+      doc.text(`Interventor: ${operatorInfo.inspectorName}`, margin, yPos);
       yPos += 5;
 
       doc.setLineWidth(0.5);
@@ -463,7 +466,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
       }
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`${contractorInfo.inspectorName}.`, margin, yPos);
+      doc.text(`${operatorInfo.inspectorName}.`, margin, yPos);
       yPos += 5;
       doc.text('Profesional Técnico.', margin, yPos);
       yPos += 5;
@@ -473,13 +476,13 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
       const formattedTime = format(now, 'p', { locale: es });
       doc.setFontSize(8);
       doc.setFont('helvetica', 'italic');
-      const signatureText = `Firmado digitalmente por ${contractorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
+      const signatureText = `Firmado digitalmente por ${operatorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
       const splitSignatureText = doc.splitTextToSize(signatureText, contentWidth);
       doc.text(splitSignatureText, margin, yPos);
 
       addHeaderAndFooter();
-      const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
-      const dateStr = format(contractorInfo.date, 'yyyy-MM-dd');
+      const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
+      const dateStr = format(operatorInfo.date, 'yyyy-MM-dd');
       const fileName = `Concepto_Viabilidad_Junta_${campusName}_${dateStr}.pdf`;
       doc.save(fileName);
 
@@ -498,7 +501,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
 
 
   const handleSaveToDB = async () => {
-    const contractorInfo = form.getValues();
+    const operatorInfo = form.getValues();
     const isFormValid = await form.trigger();
     if (!isFormValid) {
        toast({
@@ -513,7 +516,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
     
     try {
         const dataToSave = {
-          ...contractorInfo,
+          ...operatorInfo,
           items: checklistItems,
           signature,
           viabilityAntecedentes,
@@ -566,17 +569,17 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
   };
 
   const handleExportCSV = () => {
-    const contractorInfo = form.getValues();
+    const operatorInfo = form.getValues();
     let csvContent = "data:text/csv;charset=utf-8,";
     
     csvContent += "IMPLEMENTACIÓN DE INFRAESTRUCTURA TECNOLÓGICA PARA EL FORTALECIMIENTO DE LA CONECTIVIDAD, SERVICIOS TIC Y APROPIACIÓN DIGITAL EN LOS HOGARES,COMUNIDADES DE CONECTIVIDAD E INSTITUCIONES EDUCATIVAS DE LA REGIÓN DEL CATATUMBO Y ÁREA METROPOLITANA DE CÚCUTA DEL DEPARTAMENTO DE NORTE DE SANTANDER.\n";
     csvContent += "Convenio Interadministrativo 1211-2025\n\n";
-    csvContent += `Contratista,${contractorInfo.contractorName}\n`;
-    csvContent += `Junta de Internet,${contractorInfo.campusName}\n`;
-    csvContent += `Tipo de Sitio,${contractorInfo.siteType}\n`;
-    csvContent += `Municipio,${contractorInfo.municipality}\n`;
-    csvContent += `Fecha,${format(contractorInfo.date, 'PPP', { locale: es })}\n`;
-    csvContent += `Interventor,${contractorInfo.inspectorName}\n\n`;
+    csvContent += `Operador,${operatorInfo.operatorName}\n`;
+    csvContent += `Junta de Internet,${operatorInfo.campusName}\n`;
+    csvContent += `Tipo de Sitio,${operatorInfo.siteType}\n`;
+    csvContent += `Municipio,${operatorInfo.municipality}\n`;
+    csvContent += `Fecha,${format(operatorInfo.date, 'PPP', { locale: es })}\n`;
+    csvContent += `Interventor,${operatorInfo.inspectorName}\n\n`;
 
     csvContent += "ID Item,Título,Descripción,Estado,Observación\n";
 
@@ -588,8 +591,8 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    const siteType = contractorInfo.siteType?.replace(/ /g, '_') || 'TipoSitio';
-    const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
+    const siteType = operatorInfo.siteType?.replace(/ /g, '_') || 'TipoSitio';
+    const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
     const fileName = `Aprobación_Interventoria_Instalacion_${siteType}_${campusName}.csv`;
     link.setAttribute("download", fileName);
     document.body.appendChild(link);
@@ -609,7 +612,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
             imageToDataUri(footerImageUrl)
         ]);
         
-        const contractorInfo = form.getValues();
+        const operatorInfo = form.getValues();
         const doc = new jsPDF();
         
         const pageWidth = doc.internal.pageSize.width;
@@ -669,11 +672,11 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
         let currentY = yPos;
 
         const infoPairs = [
-            { label: 'Junta de Internet:', value: contractorInfo.campusName },
-            { label: 'Contratista:', value: contractorInfo.contractorName },
-            { label: 'Tipo de Sitio:', value: contractorInfo.siteType },
-            { label: 'Municipio:', value: contractorInfo.municipality },
-            { label: 'Fecha:', value: format(contractorInfo.date, 'PPP', { locale: es }) },
+            { label: 'Junta de Internet:', value: operatorInfo.campusName },
+            { label: 'Operador:', value: operatorInfo.operatorName },
+            { label: 'Tipo de Sitio:', value: operatorInfo.siteType },
+            { label: 'Municipio:', value: operatorInfo.municipality },
+            { label: 'Fecha:', value: format(operatorInfo.date, 'PPP', { locale: es }) },
         ];
         
         infoPairs.forEach(pair => {
@@ -720,7 +723,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
         }
 
         doc.setFontSize(11);
-        doc.text(`Interventor: ${contractorInfo.inspectorName}`, 14, yPos);
+        doc.text(`Interventor: ${operatorInfo.inspectorName}`, 14, yPos);
         yPos += 8;
         
         if (signature) {
@@ -745,14 +748,14 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
             doc.text('Profesional Técnico.', 14, yPos);
             yPos += 5;
             
-            const signatureText = `Firmado digitalmente por ${contractorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
+            const signatureText = `Firmado digitalmente por ${operatorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
             const splitSignatureText = doc.splitTextToSize(signatureText, contentWidth);
             doc.text(splitSignatureText, 14, yPos);
         }
         
         addHeaderAndFooter();
-        const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
-        const dateStr = format(contractorInfo.date, 'yyyy-MM-dd');
+        const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'JuntaInternet';
+        const dateStr = format(operatorInfo.date, 'yyyy-MM-dd');
         const fileName = `Aprobación_Interventoria_Instalacion_${campusName}_${dateStr}.pdf`;
         doc.save(fileName);
     } catch(error) {
@@ -985,12 +988,12 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
               />
               <FormField
                 control={form.control}
-                name="contractorName"
+                name="operatorName"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Nombre del Contratista</FormLabel>
+                    <FormLabel>Nombre del Operador</FormLabel>
                     <div className="flex gap-2">
-                      <Popover open={openContractorsPopover} onOpenChange={setOpenContractorsPopover}>
+                      <Popover open={openOperatorsPopover} onOpenChange={setOpenOperatorsPopover}>
                         <PopoverTrigger asChild disabled={isViewer}>
                           <FormControl>
                             <Button
@@ -1002,8 +1005,8 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                               )}
                             >
                               {field.value
-                                ? contractors.find(
-                                    (contractor) => contractor.name.toLowerCase() === field.value.toLowerCase()
+                                ? operators.find(
+                                    (operator) => operator.name.toLowerCase() === field.value.toLowerCase()
                                   )?.name
                                 : 'Seleccione o escriba un nombre'}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1013,33 +1016,33 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                           <Command>
                             <CommandInput
-                              placeholder="Buscar contratista..."
+                              placeholder="Buscar operador..."
                               onValueChange={(value) => field.onChange(value)}
                               disabled={isViewer}
                             />
                             <CommandList>
                               <CommandEmpty>
                                 <p className="p-4 text-sm text-muted-foreground">
-                                  No se encontró el contratista. Puede agregarlo a la lista.
+                                  No se encontró el operador. Puede agregarlo a la lista.
                                 </p>
                               </CommandEmpty>
                               <CommandGroup>
-                                {contractors.map((contractor) => (
+                                {operators.map((operator) => (
                                   <CommandItem
-                                    value={contractor.name}
-                                    key={contractor._id}
+                                    value={operator.name}
+                                    key={operator._id}
                                     onSelect={() => {
-                                      form.setValue('contractorName', contractor.name);
-                                      setOpenContractorsPopover(false);
+                                      form.setValue('operatorName', operator.name);
+                                      setOpenOperatorsPopover(false);
                                     }}
                                   >
                                     <Check
                                       className={cn(
                                         'mr-2 h-4 w-4',
-                                        contractor.name === field.value ? 'opacity-100' : 'opacity-0'
+                                        operator.name === field.value ? 'opacity-100' : 'opacity-0'
                                       )}
                                     />
-                                    {contractor.name}
+                                    {operator.name}
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
@@ -1048,56 +1051,56 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                         </PopoverContent>
                       </Popover>
                       {!isViewer && (
-                      <Dialog open={isManageContractorsOpen} onOpenChange={setIsManageContractorsOpen}>
+                      <Dialog open={isManageOperatorsOpen} onOpenChange={setIsManageOperatorsOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="icon" className="shrink-0">
                             <Edit className="h-4 w-4" />
-                            <span className="sr-only">Administrar Contratistas</span>
+                            <span className="sr-only">Administrar Operadores</span>
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle>Administrar Contratistas</DialogTitle>
+                            <DialogTitle>Administrar Operadores</DialogTitle>
                             <DialogDescription>
-                              Agregue, edite o elimine contratistas de la lista.
+                              Agregue, edite o elimine operadores de la lista.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4">
                             <div className="flex gap-2">
                               <Input
-                                value={newContractorName}
-                                onChange={(e) => setNewContractorName(e.target.value)}
-                                placeholder="Nombre del nuevo contratista"
+                                value={newOperatorName}
+                                onChange={(e) => setNewOperatorName(e.target.value)}
+                                placeholder="Nombre del nuevo operador"
                               />
-                              <Button onClick={handleAddContractor}>
+                              <Button onClick={handleAddOperator}>
                                 <Plus className="mr-2 h-4 w-4" /> Agregar
                               </Button>
                             </div>
                             <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                              {contractors.map((contractor) => (
+                              {operators.map((operator) => (
                                 <div
-                                  key={contractor._id}
+                                  key={operator._id}
                                   className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50"
                                 >
-                                  {editingContractor?._id === contractor._id ? (
+                                  {editingOperator?._id === operator._id ? (
                                     <Input
-                                      value={editingContractor.name}
+                                      value={editingOperator.name}
                                       onChange={(e) =>
-                                        setEditingContractor({ ...editingContractor, name: e.target.value })
+                                        setEditingOperator({ ...editingOperator, name: e.target.value })
                                       }
                                       className="h-8"
                                     />
                                   ) : (
-                                    <span className="text-sm flex-1">{contractor.name}</span>
+                                    <span className="text-sm flex-1">{operator.name}</span>
                                   )}
                                   <div className="flex items-center gap-1">
-                                    {editingContractor?._id === contractor._id ? (
+                                    {editingOperator?._id === operator._id ? (
                                       <>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={handleUpdateContractor}
+                                          onClick={handleUpdateOperator}
                                         >
                                           <Save className="h-4 w-4" />
                                         </Button>
@@ -1105,7 +1108,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={() => setEditingContractor(null)}
+                                          onClick={() => setEditingOperator(null)}
                                         >
                                           <X className="h-4 w-4" />
                                         </Button>
@@ -1116,7 +1119,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={() => setEditingContractor(contractor)}
+                                          onClick={() => setEditingOperator(operator)}
                                         >
                                           <Edit className="h-4 w-4" />
                                         </Button>
@@ -1124,7 +1127,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7 text-destructive"
-                                          onClick={() => handleDeleteContractor(contractor._id)}
+                                          onClick={() => handleDeleteOperator(operator._id)}
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -1136,7 +1139,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsManageContractorsOpen(false)}>
+                            <Button variant="outline" onClick={() => setIsManageOperatorsOpen(false)}>
                               Cerrar
                             </Button>
                           </DialogFooter>

@@ -15,8 +15,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import { z } from 'zod';
 
 import type { ComplianceCheckOutput } from '@/ai/flows/compliance-check';
-import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getContractors, addContractor, updateContractor, deleteContractor, getInstitutions, addInstitution, updateInstitution, deleteInstitution, getCampuses, addCampus, updateCampus, deleteCampus, ChecklistQuestion } from '@/app/actions';
-import type { Contractor } from '@/lib/contractors-data';
+import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getOperators, addOperator, updateOperator, deleteOperator, getInstitutions, addInstitution, updateInstitution, deleteInstitution, getCampuses, addCampus, updateCampus, deleteCampus, ChecklistQuestion } from '@/app/actions';
+import type { Operator } from '@/app/actions';
 import type { Institution } from '@/lib/institutions-data';
 import type { Campus } from '@/lib/campus-data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -43,7 +43,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 
 const formSchema = z.object({
   _id: z.string().optional(),
-  contractorName: z.string().min(1, 'El nombre es requerido.'),
+  operatorName: z.string().min(1, 'El nombre es requerido.'),
   institutionName: z.string().min(1, 'El nombre de la institución es requerido.'),
   campusName: z.string().min(1, 'El nombre de la sede es requerido.'),
   siteType: z.string({ required_error: 'El tipo de sitio es requerido.' }),
@@ -53,7 +53,7 @@ const formSchema = z.object({
 });
 
 
-type ContractorFormData = z.infer<typeof formSchema>;
+type OperatorFormData = z.infer<typeof formSchema>;
 
 type ComplianceStatus = 'cumple' | 'no_cumple' | 'parcial' | 'na';
 
@@ -74,7 +74,7 @@ const checklists = {
 
 
 const initialFormState = {
-    contractorName: '',
+    operatorName: '',
     institutionName: '',
     campusName: '',
     municipality: '',
@@ -99,11 +99,11 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [signature, setSignature] = React.useState<string | null>(null);
 
-  const [contractors, setContractors] = React.useState<Contractor[]>([]);
-  const [openContractorsPopover, setOpenContractorsPopover] = React.useState(false);
-  const [isManageContractorsOpen, setIsManageContractorsOpen] = React.useState(false);
-  const [newContractorName, setNewContractorName] = React.useState('');
-  const [editingContractor, setEditingContractor] = React.useState<Contractor | null>(null);
+  const [operators, setOperators] = React.useState<Operator[]>([]);
+  const [openOperatorsPopover, setOpenOperatorsPopover] = React.useState(false);
+  const [isManageOperatorsOpen, setIsManageOperatorsOpen] = React.useState(false);
+  const [newOperatorName, setNewOperatorName] = React.useState('');
+  const [editingOperator, setEditingOperator] = React.useState<Operator | null>(null);
 
   const [institutions, setInstitutions] = React.useState<Institution[]>([]);
   const [openInstitutionsPopover, setOpenInstitutionsPopover] = React.useState(false);
@@ -116,19 +116,23 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
   const [isManageCampusesOpen, setIsManageCampusesOpen] = React.useState(false);
   const [newCampus, setNewCampus] = React.useState({ name: '', institutionName: '', municipality: ''});
   const [editingCampus, setEditingCampus] = React.useState<Campus | null>(null);
+  const [checklistLoading, setChecklistLoading] = React.useState(true);
 
 
-  const form = useForm<ContractorFormData>({
+  const form = useForm<OperatorFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: initialFormState,
   });
 
-  const getViabilityReportDefaultContent = (formData: ContractorFormData) => {
-    const institutionText = `la ${formData.institutionName}, `;
+  const getViabilityReportDefaultContent = (formData: OperatorFormData) => {
+    const institutionText = `${formData.institutionName}, `;
+    const siteText = `${formData.campusName}`;
+    const conclusionSiteText = `${formData.institutionName}, ${formData.campusName}`;
+
     return {
-      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para ${institutionText}${formData.campusName} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico, los cuales se detallan a continuación.`,
-      analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El contratista realizo a satisfacción el Estudio de Campo para ${institutionText}${formData.campusName} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
-      conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para ${institutionText}${formData.campusName} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.`
+      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
+      analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El operador realizo a satisfacción el Estudio de Campo para ${institutionText}${siteText} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
+      conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para la ${conclusionSiteText} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.\n• Archivo Anexo ${formData.campusName.replace(/ /g, '_')}.pdf`
     };
   };
 
@@ -137,12 +141,12 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
   const [viabilityConclusion, setViabilityConclusion] = React.useState('');
 
     const fetchDropdownData = React.useCallback(async () => {
-        const [contractorsData, institutionsData, campusesData] = await Promise.all([
-            getContractors(),
+        const [operatorsData, institutionsData, campusesData] = await Promise.all([
+            getOperators(),
             getInstitutions(),
             getCampuses(),
         ]);
-        setContractors(contractorsData);
+        setOperators(operatorsData);
         setInstitutions(institutionsData);
         setCampuses(campusesData);
     }, []);
@@ -190,7 +194,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
 
   React.useEffect(() => {
     const subscription = form.watch((value) => {
-      const defaults = getViabilityReportDefaultContent(value as ContractorFormData);
+      const defaults = getViabilityReportDefaultContent(value as OperatorFormData);
       setViabilityAntecedentes(defaults.antecedentes);
       setViabilityAnalisis(defaults.analisis);
       setViabilityConclusion(defaults.conclusion);
@@ -248,33 +252,33 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
     }
   };
 
-  const handleAddContractor = async () => {
-    if (newContractorName.trim()) {
-      const result = await addContractor(newContractorName.trim());
+  const handleAddOperator = async () => {
+    if (newOperatorName.trim()) {
+      const result = await addOperator(newOperatorName.trim());
       if (result.success) {
-        setContractors([...contractors, result.contractor]);
-        setNewContractorName('');
+        setOperators([...operators, result.operator]);
+        setNewOperatorName('');
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
     }
   };
 
-  const handleDeleteContractor = async (id: string) => {
-    const result = await deleteContractor(id);
+  const handleDeleteOperator = async (id: string) => {
+    const result = await deleteOperator(id);
     if (result.success) {
-      setContractors(contractors.filter((c) => c._id !== id));
+      setOperators(operators.filter((c) => c._id !== id));
     } else {
       toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
   };
 
-  const handleUpdateContractor = async () => {
-    if (editingContractor && editingContractor.name.trim()) {
-      const result = await updateContractor(editingContractor._id, editingContractor.name.trim());
+  const handleUpdateOperator = async () => {
+    if (editingOperator && editingOperator.name.trim()) {
+      const result = await updateOperator(editingOperator._id, editingOperator.name.trim());
       if (result.success) {
         await fetchDropdownData();
-        setEditingContractor(null);
+        setEditingOperator(null);
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
@@ -397,7 +401,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
         imageToDataUri(footerImageUrl),
       ]);
 
-      const contractorInfo = form.getValues();
+      const operatorInfo = form.getValues();
       const doc = new jsPDF();
 
       const pageWidth = doc.internal.pageSize.width;
@@ -462,9 +466,9 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
       const splitProjectText = doc.splitTextToSize(projectText, contentWidth);
       doc.text(splitProjectText, margin, yPos);
       yPos += (splitProjectText.length * 5) + 2;
-      doc.text(`Contratista: ${contractorInfo.contractorName}`, margin, yPos);
+      doc.text(`Operador: ${operatorInfo.operatorName}`, margin, yPos);
       yPos += 5;
-      doc.text(`Interventor: ${contractorInfo.inspectorName}`, margin, yPos);
+      doc.text(`Interventor: ${operatorInfo.inspectorName}`, margin, yPos);
       yPos += 5;
 
       doc.setLineWidth(0.5);
@@ -505,7 +509,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
       }
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`${contractorInfo.inspectorName}.`, margin, yPos);
+      doc.text(`${operatorInfo.inspectorName}.`, margin, yPos);
       yPos += 5;
       doc.text('Profesional Técnico.', margin, yPos);
       yPos += 5;
@@ -515,13 +519,13 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
       const formattedTime = format(now, 'p', { locale: es });
       doc.setFontSize(8);
       doc.setFont('helvetica', 'italic');
-      const signatureText = `Firmado digitalmente por ${contractorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
+      const signatureText = `Firmado digitalmente por ${operatorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
       const splitSignatureText = doc.splitTextToSize(signatureText, contentWidth);
       doc.text(splitSignatureText, margin, yPos);
 
       addHeaderAndFooter();
-      const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
-      const dateStr = format(contractorInfo.date, 'yyyy-MM-dd');
+      const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
+      const dateStr = format(operatorInfo.date, 'yyyy-MM-dd');
       const fileName = `Concepto_Viabilidad_${campusName}_${dateStr}.pdf`;
       doc.save(fileName);
 
@@ -540,7 +544,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
 
 
   const handleSaveToDB = async () => {
-    const contractorInfo = form.getValues();
+    const operatorInfo = form.getValues();
     const isFormValid = await form.trigger();
     if (!isFormValid) {
        toast({
@@ -555,7 +559,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
     
     try {
         const dataToSave = {
-          ...contractorInfo,
+          ...operatorInfo,
           items: checklistItems,
           signature,
           viabilityAntecedentes,
@@ -608,18 +612,18 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
   };
 
   const handleExportCSV = () => {
-    const contractorInfo = form.getValues();
+    const operatorInfo = form.getValues();
     let csvContent = "data:text/csv;charset=utf-8,";
     
     csvContent += "IMPLEMENTACIÓN DE INFRAESTRUCTURA TECNOLÓGICA PARA EL FORTALECIMIENTO DE LA CONECTIVIDAD, SERVICIOS TIC Y APROPIACIÓN DIGITAL EN LOS HOGARES,COMUNIDADES DE CONECTIVIDAD E INSTITUCIONES EDUCATIVAS DE LA REGIÓN DEL CATATUMBO Y ÁREA METROPOLITANA DE CÚCUTA DEL DEPARTAMENTO DE NORTE DE SANTANDER.\n";
     csvContent += "Convenio Interadministrativo 1211-2025\n\n";
-    csvContent += `Contratista,${contractorInfo.contractorName}\n`;
-    csvContent += `Institución Educativa,${contractorInfo.institutionName}\n`;
-    csvContent += `Sede Educativa,${contractorInfo.campusName}\n`;
-    csvContent += `Tipo de Sitio,${contractorInfo.siteType}\n`;
-    csvContent += `Municipio,${contractorInfo.municipality}\n`;
-    csvContent += `Fecha,${format(contractorInfo.date, 'PPP', { locale: es })}\n`;
-    csvContent += `Interventor,${contractorInfo.inspectorName}\n\n`;
+    csvContent += `Operador,${operatorInfo.operatorName}\n`;
+    csvContent += `Institución Educativa,${operatorInfo.institutionName}\n`;
+    csvContent += `Sede Educativa,${operatorInfo.campusName}\n`;
+    csvContent += `Tipo de Sitio,${operatorInfo.siteType}\n`;
+    csvContent += `Municipio,${operatorInfo.municipality}\n`;
+    csvContent += `Fecha,${format(operatorInfo.date, 'PPP', { locale: es })}\n`;
+    csvContent += `Interventor,${operatorInfo.inspectorName}\n\n`;
 
     csvContent += "ID Item,Título,Descripción,Estado,Observación\n";
 
@@ -631,8 +635,8 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    const siteType = contractorInfo.siteType?.replace(/ /g, '_') || 'TipoSitio';
-    const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
+    const siteType = operatorInfo.siteType?.replace(/ /g, '_') || 'TipoSitio';
+    const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
     const fileName = `Aprobación_Interventoria_Instalacion_${siteType}_${campusName}.csv`;
     link.setAttribute("download", fileName);
     document.body.appendChild(link);
@@ -652,7 +656,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
             imageToDataUri(footerImageUrl)
         ]);
         
-        const contractorInfo = form.getValues();
+        const operatorInfo = form.getValues();
         const doc = new jsPDF();
         
         const pageWidth = doc.internal.pageSize.width;
@@ -712,12 +716,12 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
         let currentY = yPos;
 
         const infoPairs = [
-            { label: 'Institución Educativa:', value: contractorInfo.institutionName },
-            { label: 'Sede Educativa:', value: contractorInfo.campusName },
-            { label: 'Contratista:', value: contractorInfo.contractorName },
-            { label: 'Tipo de Sitio:', value: contractorInfo.siteType },
-            { label: 'Municipio:', value: contractorInfo.municipality },
-            { label: 'Fecha:', value: format(contractorInfo.date, 'PPP', { locale: es }) },
+            { label: 'Institución Educativa:', value: operatorInfo.institutionName },
+            { label: 'Sede Educativa:', value: operatorInfo.campusName },
+            { label: 'Operador:', value: operatorInfo.operatorName },
+            { label: 'Tipo de Sitio:', value: operatorInfo.siteType },
+            { label: 'Municipio:', value: operatorInfo.municipality },
+            { label: 'Fecha:', value: format(operatorInfo.date, 'PPP', { locale: es }) },
         ];
         
         infoPairs.forEach(pair => {
@@ -764,7 +768,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
         }
 
         doc.setFontSize(11);
-        doc.text(`Interventor: ${contractorInfo.inspectorName}`, 14, yPos);
+        doc.text(`Interventor: ${operatorInfo.inspectorName}`, 14, yPos);
         yPos += 8;
         
         if (signature) {
@@ -789,14 +793,14 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
             doc.text('Profesional Técnico.', 14, yPos);
             yPos += 5;
             
-            const signatureText = `Firmado digitalmente por ${contractorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
+            const signatureText = `Firmado digitalmente por ${operatorInfo.inspectorName} el ${formattedDate} a las ${formattedTime}. La integridad de este documento está asegurada.`;
             const splitSignatureText = doc.splitTextToSize(signatureText, contentWidth);
             doc.text(splitSignatureText, 14, yPos);
         }
         
         addHeaderAndFooter();
-        const campusName = contractorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
-        const dateStr = format(contractorInfo.date, 'yyyy-MM-dd');
+        const campusName = operatorInfo.campusName?.replace(/ /g, '_') || 'SedeEducativa';
+        const dateStr = format(operatorInfo.date, 'yyyy-MM-dd');
         const fileName = `Aprobación_Interventoria_Instalacion_${campusName}_${dateStr}.pdf`;
         doc.save(fileName);
     } catch(error) {
@@ -1182,12 +1186,12 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
               />
               <FormField
                 control={form.control}
-                name="contractorName"
+                name="operatorName"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Nombre del Contratista</FormLabel>
+                    <FormLabel>Nombre del Operador</FormLabel>
                     <div className="flex gap-2">
-                      <Popover open={openContractorsPopover} onOpenChange={setOpenContractorsPopover}>
+                      <Popover open={openOperatorsPopover} onOpenChange={setOpenOperatorsPopover}>
                         <PopoverTrigger asChild disabled={isViewer}>
                           <FormControl>
                             <Button
@@ -1199,8 +1203,8 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                               )}
                             >
                               {field.value
-                                ? contractors.find(
-                                    (contractor) => contractor.name.toLowerCase() === field.value.toLowerCase()
+                                ? operators.find(
+                                    (operator) => operator.name.toLowerCase() === field.value.toLowerCase()
                                   )?.name
                                 : 'Seleccione o escriba un nombre'}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1210,33 +1214,33 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                           <Command>
                             <CommandInput
-                              placeholder="Buscar contratista..."
+                              placeholder="Buscar operador..."
                               onValueChange={(value) => field.onChange(value)}
                               disabled={isViewer}
                             />
                             <CommandList>
                               <CommandEmpty>
                                 <p className="p-4 text-sm text-muted-foreground">
-                                  No se encontró el contratista. Puede agregarlo a la lista.
+                                  No se encontró el operador. Puede agregarlo a la lista.
                                 </p>
                               </CommandEmpty>
                               <CommandGroup>
-                                {contractors.map((contractor) => (
+                                {operators.map((operator) => (
                                   <CommandItem
-                                    value={contractor.name}
-                                    key={contractor._id}
+                                    value={operator.name}
+                                    key={operator._id}
                                     onSelect={() => {
-                                      form.setValue('contractorName', contractor.name);
-                                      setOpenContractorsPopover(false);
+                                      form.setValue('operatorName', operator.name);
+                                      setOpenOperatorsPopover(false);
                                     }}
                                   >
                                     <Check
                                       className={cn(
                                         'mr-2 h-4 w-4',
-                                        contractor.name === field.value ? 'opacity-100' : 'opacity-0'
+                                        operator.name === field.value ? 'opacity-100' : 'opacity-0'
                                       )}
                                     />
-                                    {contractor.name}
+                                    {operator.name}
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
@@ -1245,56 +1249,56 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                         </PopoverContent>
                       </Popover>
                       {!isViewer && (
-                      <Dialog open={isManageContractorsOpen} onOpenChange={setIsManageContractorsOpen}>
+                      <Dialog open={isManageOperatorsOpen} onOpenChange={setIsManageOperatorsOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="icon" className="shrink-0">
                             <Edit className="h-4 w-4" />
-                            <span className="sr-only">Administrar Contratistas</span>
+                            <span className="sr-only">Administrar Operadores</span>
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle>Administrar Contratistas</DialogTitle>
+                            <DialogTitle>Administrar Operadores</DialogTitle>
                             <DialogDescription>
-                              Agregue, edite o elimine contratistas de la lista.
+                              Agregue, edite o elimine operadores de la lista.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4">
                             <div className="flex gap-2">
                               <Input
-                                value={newContractorName}
-                                onChange={(e) => setNewContractorName(e.target.value)}
-                                placeholder="Nombre del nuevo contratista"
+                                value={newOperatorName}
+                                onChange={(e) => setNewOperatorName(e.target.value)}
+                                placeholder="Nombre del nuevo operador"
                               />
-                              <Button onClick={handleAddContractor}>
+                              <Button onClick={handleAddOperator}>
                                 <Plus className="mr-2 h-4 w-4" /> Agregar
                               </Button>
                             </div>
                             <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                              {contractors.map((contractor) => (
+                              {operators.map((operator) => (
                                 <div
-                                  key={contractor._id}
+                                  key={operator._id}
                                   className="flex items-center justify-between gap-2 rounded-md p-2 bg-muted/50"
                                 >
-                                  {editingContractor?._id === contractor._id ? (
+                                  {editingOperator?._id === operator._id ? (
                                     <Input
-                                      value={editingContractor.name}
+                                      value={editingOperator.name}
                                       onChange={(e) =>
-                                        setEditingContractor({ ...editingContractor, name: e.target.value })
+                                        setEditingOperator({ ...editingOperator, name: e.target.value })
                                       }
                                       className="h-8"
                                     />
                                   ) : (
-                                    <span className="text-sm flex-1">{contractor.name}</span>
+                                    <span className="text-sm flex-1">{operator.name}</span>
                                   )}
                                   <div className="flex items-center gap-1">
-                                    {editingContractor?._id === contractor._id ? (
+                                    {editingOperator?._id === operator._id ? (
                                       <>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={handleUpdateContractor}
+                                          onClick={handleUpdateOperator}
                                         >
                                           <Save className="h-4 w-4" />
                                         </Button>
@@ -1302,7 +1306,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={() => setEditingContractor(null)}
+                                          onClick={() => setEditingOperator(null)}
                                         >
                                           <X className="h-4 w-4" />
                                         </Button>
@@ -1313,7 +1317,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7"
-                                          onClick={() => setEditingContractor(contractor)}
+                                          onClick={() => setEditingOperator(operator)}
                                         >
                                           <Edit className="h-4 w-4" />
                                         </Button>
@@ -1321,7 +1325,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                                           variant="ghost"
                                           size="icon"
                                           className="h-7 w-7 text-destructive"
-                                          onClick={() => handleDeleteContractor(contractor._id)}
+                                          onClick={() => handleDeleteOperator(operator._id)}
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -1333,7 +1337,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsManageContractorsOpen(false)}>
+                            <Button variant="outline" onClick={() => setIsManageOperatorsOpen(false)}>
                               Cerrar
                             </Button>
                           </DialogFooter>
@@ -1437,7 +1441,7 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
           </Form>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Lista de Verificación</CardTitle>
@@ -1446,208 +1450,215 @@ export function ChecklistFormInstalacion({ isViewer }: { isViewer: boolean }) {
             </CardDescription>
         </CardHeader>
         <CardContent>
-          <Accordion type="multiple" className="w-full">
-            {checklistItems.map((item) => {
-              const feedback = getFeedbackForItemId(item.id);
-              return (
-                <AccordionItem value={item.id} key={item.id}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-4 w-full">
-                      <div className={cn("h-3 w-3 rounded-full", getStatusColor(item.status))}></div>
-                      <span className="text-left flex-1">
-                        <span className="font-bold font-code mr-2">{item.id}</span>
-                        {item.title}
-                      </span>
-                      {feedback && (
-                        <Badge variant="destructive" className="flex items-center gap-1.5 animate-pulse">
-                           <AlertCircle className="h-4 w-4"/> Se necesita evidencia
-                        </Badge>
-                      )}
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-4 space-y-6">
-                    <p className="text-muted-foreground">{item.description}</p>
-                    
-                     {feedback && (
-                        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                            <p className="text-sm text-destructive-foreground font-semibold">Observación de IA:</p>
-                            <p className="text-sm text-destructive-foreground/80">{(feedback as any).reason}</p>
+          {checklistLoading ? (
+             <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+             </div>
+          ) : (
+            <>
+            <Accordion type="multiple" className="w-full">
+                {checklistItems.map((item) => {
+                const feedback = getFeedbackForItemId(item.id);
+                return (
+                    <AccordionItem value={item.id} key={item.id}>
+                    <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-4 w-full">
+                        <div className={cn("h-3 w-3 rounded-full", getStatusColor(item.status))}></div>
+                        <span className="text-left flex-1">
+                            <span className="font-bold font-code mr-2">{item.id}</span>
+                            {item.title}
+                        </span>
+                        {feedback && (
+                            <Badge variant="destructive" className="flex items-center gap-1.5 animate-pulse">
+                            <AlertCircle className="h-4 w-4"/> Se necesita evidencia
+                            </Badge>
+                        )}
                         </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                           <div>
-                                <Label className="mb-2 block">Estado de Cumplimiento</Label>
-                                <RadioGroup
-                                    value={item.status}
-                                    onValueChange={(value) => handleStatusChange(item.id, value as ComplianceStatus)}
-                                    className="flex flex-wrap gap-x-4 gap-y-2"
-                                    disabled={isViewer}
-                                >
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="cumple" id={`cumple-${item.id}`} />
-                                        <Label htmlFor={`cumple-${item.id}`}>Cumple</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="no_cumple" id={`no_cumple-${item.id}`} />
-                                        <Label htmlFor={`no_cumple-${item.id}`}>No Cumple</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="parcial" id={`parcial-${item.id}`} />
-                                        <Label htmlFor={`parcial-${item.id}`}>Parcial</Label>
-                                    </div>
-                                     <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="na" id={`na-${item.id}`} />
-                                        <Label htmlFor={`na-${item.id}`}>N/A</Label>
-                                    </div>
-                                </RadioGroup>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4 space-y-6">
+                        <p className="text-muted-foreground">{item.description}</p>
+                        
+                        {feedback && (
+                            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                                <p className="text-sm text-destructive-foreground font-semibold">Observación de IA:</p>
+                                <p className="text-sm text-destructive-foreground/80">{(feedback as any).reason}</p>
                             </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
                             <div>
-                                <Label htmlFor={`obs-${item.id}`}>Observaciones</Label>
-                                <Textarea
-                                    id={`obs-${item.id}`}
-                                    placeholder="Añada sus comentarios aquí..."
-                                    value={item.observation}
-                                    onChange={(e) => handleObservationChange(item.id, e.target.value)}
-                                    rows={4}
-                                    disabled={isViewer}
-                                />
+                                    <Label className="mb-2 block">Estado de Cumplimiento</Label>
+                                    <RadioGroup
+                                        value={item.status}
+                                        onValueChange={(value) => handleStatusChange(item.id, value as ComplianceStatus)}
+                                        className="flex flex-wrap gap-x-4 gap-y-2"
+                                        disabled={isViewer}
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="cumple" id={`cumple-${item.id}`} />
+                                            <Label htmlFor={`cumple-${item.id}`}>Cumple</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="no_cumple" id={`no_cumple-${item.id}`} />
+                                            <Label htmlFor={`no_cumple-${item.id}`}>No Cumple</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="parcial" id={`parcial-${item.id}`} />
+                                            <Label htmlFor={`parcial-${item.id}`}>Parcial</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="na" id={`na-${item.id}`} />
+                                            <Label htmlFor={`na-${item.id}`}>N/A</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`obs-${item.id}`}>Observaciones</Label>
+                                    <Textarea
+                                        id={`obs-${item.id}`}
+                                        placeholder="Añada sus comentarios aquí..."
+                                        value={item.observation}
+                                        onChange={(e) => handleObservationChange(item.id, e.target.value)}
+                                        rows={4}
+                                        disabled={isViewer}
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor={`photo-${item.id}`}>Documentación Visual</Label>
-                             <div className="flex items-center gap-4">
-                               <Input id={`photo-${item.id}`} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoChange(item.id, e)} disabled={isViewer}/>
-                               {!isViewer && (
-                                <Button asChild variant="outline">
-                                  <label htmlFor={`photo-${item.id}`} className="cursor-pointer flex items-center gap-2">
-                                      <Camera className="h-4 w-4" /> Subir Foto
-                                  </label>
-                                </Button>
-                               )}
+                            <div className="space-y-2">
+                                <Label htmlFor={`photo-${item.id}`}>Documentación Visual</Label>
+                                <div className="flex items-center gap-4">
+                                <Input id={`photo-${item.id}`} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoChange(item.id, e)} disabled={isViewer}/>
+                                {!isViewer && (
+                                    <Button asChild variant="outline">
+                                    <label htmlFor={`photo-${item.id}`} className="cursor-pointer flex items-center gap-2">
+                                        <Camera className="h-4 w-4" /> Subir Foto
+                                    </label>
+                                    </Button>
+                                )}
+                                </div>
+                                {item.photoDataUri && (
+                                    <Dialog>
+                                    <DialogTrigger asChild>
+                                        <button className="mt-2 rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all">
+                                        <Image
+                                            src={item.photoDataUri}
+                                            alt={`Evidencia para ${item.id}`}
+                                            width={128}
+                                            height={128}
+                                            className="object-cover h-32 w-32"
+                                            data-ai-hint="site construction"
+                                        />
+                                        </button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-3xl">
+                                        <DialogHeader>
+                                            <DialogTitle>Vista Previa - {item.id}: {item.title}</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="mt-4">
+                                        <Image
+                                            src={item.photoDataUri}
+                                            alt={`Evidencia para ${item.id}`}
+                                            width={800}
+                                            height={600}
+                                            className="w-full h-auto object-contain rounded-md"
+                                            data-ai-hint="site construction"
+                                        />
+                                        </div>
+                                    </DialogContent>
+                                    </Dialog>
+                                )}
                             </div>
-                            {item.photoDataUri && (
-                                <Dialog>
-                                <DialogTrigger asChild>
-                                    <button className="mt-2 rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all">
-                                    <Image
-                                        src={item.photoDataUri}
-                                        alt={`Evidencia para ${item.id}`}
-                                        width={128}
-                                        height={128}
-                                        className="object-cover h-32 w-32"
-                                        data-ai-hint="site construction"
-                                    />
-                                    </button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-3xl">
-                                    <DialogHeader>
-                                        <DialogTitle>Vista Previa - {item.id}: {item.title}</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="mt-4">
-                                     <Image
-                                        src={item.photoDataUri}
-                                        alt={`Evidencia para ${item.id}`}
-                                        width={800}
-                                        height={600}
-                                        className="w-full h-auto object-contain rounded-md"
-                                        data-ai-hint="site construction"
-                                    />
-                                    </div>
-                                </DialogContent>
-                                </Dialog>
-                            )}
                         </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+                    </AccordionContent>
+                    </AccordionItem>
+                );
+                })}
+            </Accordion>
           
-          <div className="py-6">
-            <Separator />
-          </div>
+            <div className="py-6">
+                <Separator />
+            </div>
 
-          <Collapsible className="space-y-2">
-            <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between space-x-4 px-1 cursor-pointer">
-                    <h4 className="text-sm font-semibold">
-                        Contenido del Concepto de Viabilidad
-                    </h4>
-                    <Button variant="ghost" size="sm" className="w-9 p-0">
-                        <ChevronsUpDown className="h-4 w-4" />
-                        <span className="sr-only">Toggle</span>
-                    </Button>
+            <div className="space-y-4">
+                <Collapsible className="space-y-2">
+                    <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between space-x-4 px-1 cursor-pointer">
+                            <h4 className="text-sm font-semibold">
+                                Contenido del Concepto de Viabilidad
+                            </h4>
+                            <Button variant="ghost" size="sm" className="w-9 p-0">
+                                <ChevronsUpDown className="h-4 w-4" />
+                                <span className="sr-only">Toggle</span>
+                            </Button>
+                        </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                    <Card>
+                        <CardContent className="p-6 space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="antecedentes">1. Antecedentes</Label>
+                                <Textarea id="antecedentes" value={viabilityAntecedentes} onChange={(e) => setViabilityAntecedentes(e.target.value)} rows={5} disabled={isViewer} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="analisis">2. Análisis Técnico</Label>
+                                <Textarea id="analisis" value={viabilityAnalisis} onChange={(e) => setViabilityAnalisis(e.target.value)} rows={5} disabled={isViewer} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="conclusion">3. Conclusión Técnica</Label>
+                                <Textarea id="conclusion" value={viabilityConclusion} onChange={(e) => setViabilityConclusion(e.target.value)} rows={5} disabled={isViewer} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    </CollapsibleContent>
+                </Collapsible>
+                
+                <div className="py-6">
+                    <Separator />
                 </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-               <Card>
-                    <CardContent className="p-6 space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="antecedentes">1. Antecedentes</Label>
-                            <Textarea id="antecedentes" value={viabilityAntecedentes} onChange={(e) => setViabilityAntecedentes(e.target.value)} rows={5} disabled={isViewer} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="analisis">2. Análisis Técnico</Label>
-                            <Textarea id="analisis" value={viabilityAnalisis} onChange={(e) => setViabilityAnalisis(e.target.value)} rows={5} disabled={isViewer} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="conclusion">3. Conclusión Técnica</Label>
-                            <Textarea id="conclusion" value={viabilityConclusion} onChange={(e) => setViabilityConclusion(e.target.value)} rows={5} disabled={isViewer} />
-                        </div>
-                    </CardContent>
-                </Card>
-            </CollapsibleContent>
-          </Collapsible>
-          
-          <div className="py-6">
-            <Separator />
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>Firma del Interventor</Label>
-              <p className="text-sm text-muted-foreground">
-                {isViewer ? 'Firma del interventor que realizó el checklist.' : 'Dibuje su firma en el recuadro o suba una imagen de su firma.'}
-              </p>
+                
+                <div>
+                    <Label>Firma del Interventor</Label>
+                    <p className="text-sm text-muted-foreground">
+                        {isViewer ? 'Firma del interventor que realizó el checklist.' : 'Dibuje su firma en el recuadro o suba una imagen de su firma.'}
+                    </p>
+                </div>
+                <div className="relative w-full h-40 border rounded-md bg-white flex items-center justify-center">
+                    {signature ? (
+                        <Image src={signature} alt="Firma" layout="fill" objectFit="contain" />
+                    ) : (
+                        <SignatureCanvas
+                        ref={sigCanvas}
+                        penColor="black"
+                        canvasProps={{ className: 'w-full h-full' }}
+                        onEnd={handleSignatureEnd}
+                        disabled={isViewer}
+                        />
+                    )}
+                </div>
+                {!isViewer && (
+                    <div className="flex justify-end gap-2">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            ref={fileInputRef}
+                            onChange={handleSignatureUpload}
+                            className="hidden"
+                        />
+                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Subir Firma
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={clearSignature}>
+                            <Eraser className="mr-2 h-4 w-4" />
+                            Limpiar Firma
+                        </Button>
+                    </div>
+                )}
             </div>
-            <div className="relative w-full h-40 border rounded-md bg-white flex items-center justify-center">
-              {signature ? (
-                <Image src={signature} alt="Firma" layout="fill" objectFit="contain" />
-              ) : (
-                <SignatureCanvas
-                  ref={sigCanvas}
-                  penColor="black"
-                  canvasProps={{ className: 'w-full h-full' }}
-                  onEnd={handleSignatureEnd}
-                  disabled={isViewer}
-                />
-              )}
-            </div>
-            {!isViewer && (
-             <div className="flex justify-end gap-2">
-                <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={handleSignatureUpload}
-                    className="hidden"
-                />
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Subir Firma
-                </Button>
-                <Button variant="ghost" size="sm" onClick={clearSignature}>
-                    <Eraser className="mr-2 h-4 w-4" />
-                    Limpiar Firma
-                </Button>
-            </div>
-            )}
-          </div>
-
+            </>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row items-center gap-4 justify-end pt-6 border-t">
             {!isViewer && (
