@@ -2,7 +2,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { addDays, differenceInDays, format, startOfDay, parse } from 'date-fns';
+import { addDays, differenceInDays, format, startOfDay, parse, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AlertTriangle, CalendarIcon, Edit, Loader2, Plus, Save, Trash2, X, Check, Flame, Download, Upload } from 'lucide-react';
 import * as React from 'react';
@@ -11,7 +11,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { z } from 'zod';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as Papa from 'papaparse';
 
 
 import { deleteScheduleTask, getScheduleTasks, saveScheduleTask, bulkSaveScheduleTasks, type ScheduleTask, ScheduleTaskStatus, ScheduleTaskPriority, ScheduleType } from '@/app/actions';
@@ -90,11 +90,11 @@ type HierarchicalTask = ScheduleTask & { children: HierarchicalTask[], level: nu
 
 
 const statusMap: Record<ScheduleTaskStatus, { label: string; color: string; fill: string }> = {
-  por_iniciar: { label: 'Por Iniciar', color: 'bg-gray-500', fill: 'hsl(var(--muted-foreground))' },
-  iniciada: { label: 'Iniciada', color: 'bg-blue-500', fill: 'hsl(var(--primary))' },
-  en_ejecucion: { label: 'En Ejecución', color: 'bg-yellow-500', fill: 'hsl(var(--chart-4))' },
-  pausada: { label: 'Pausada', color: 'bg-orange-500', fill: 'hsl(var(--chart-5))' },
-  ejecutada: { label: 'Ejecutada', color: 'bg-green-500', fill: 'hsl(var(--chart-2))' },
+  por_iniciar: { label: 'Por Iniciar', color: 'bg-gray-500', fill: '#A0A0A0' },
+  iniciada: { label: 'Iniciada', color: 'bg-blue-500', fill: '#3B82F6' },
+  en_ejecucion: { label: 'En Ejecución', color: 'bg-yellow-500', fill: '#FBBF24' },
+  pausada: { label: 'Pausada', color: 'bg-orange-500', fill: '#F97316' },
+  ejecutada: { label: 'Ejecutada', color: 'bg-green-500', fill: '#22C55E' },
 };
 
 const priorityMap: Record<ScheduleTaskPriority, { label: string; color: string }> = {
@@ -196,7 +196,30 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
   const [editingTask, setEditingTask] = React.useState<ScheduleTask | null>(null);
   const barRefs = React.useRef<Map<string, any>>(new Map());
   const [criticalPath, setCriticalPath] = React.useState<string[]>([]);
+  const chartRef = React.useRef<HTMLDivElement>(null);
   
+  const naturalSortCompare = (a: string, b: string) => {
+    const aParts = a.match(/^(\d+(\.\d+)*)\s/);
+    const bParts = b.match(/^(\d+(\.\d+)*)\s/);
+
+    if (aParts && bParts) {
+        const aNums = aParts[1].split('.').map(Number);
+        const bNums = bParts[1].split('.').map(Number);
+        const len = Math.min(aNums.length, bNums.length);
+
+        for (let i = 0; i < len; i++) {
+            if (aNums[i] !== bNums[i]) {
+                return aNums[i] - bNums[i];
+            }
+        }
+        return aNums.length - bNums.length;
+    }
+    if (aParts) return -1;
+    if (bParts) return 1;
+
+    return a.localeCompare(b);
+  };
+
   const processedTasks = React.useMemo(() => {
     const buildHierarchy = (tasks: ScheduleTask[]): HierarchicalTask[] => {
         const taskMap = new Map<string, HierarchicalTask>();
@@ -210,7 +233,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
                 if (parent) {
                     parent.children.push(task);
                 } else {
-                    roots.push(task); // Dependency points to a non-existent task, treat as root
+                    roots.push(task);
                 }
             } else {
                 roots.push(task);
@@ -224,12 +247,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
 
         const finalRoots = roots
             .filter(task => !nonRootIds.has(task._id!))
-            .sort((a, b) => {
-                if (a.startDate && b.startDate) return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-                if (a.startDate) return -1;
-                if (b.startDate) return 1;
-                return a.name.localeCompare(b.name);
-            });
+            .sort((a, b) => naturalSortCompare(a.name, b.name));
 
         return finalRoots;
     };
@@ -239,13 +257,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
         for (const task of tasks) {
             result.push({ ...task, level });
             if (task.children.length > 0) {
-                 // Sort children by start date before processing
-                task.children.sort((a, b) => {
-                    if (a.startDate && b.startDate) return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-                    if (a.startDate) return -1;
-                    if (b.startDate) return 1;
-                    return a.name.localeCompare(b.name);
-                });
+                task.children.sort((a, b) => naturalSortCompare(a.name, b.name));
                 result = result.concat(flattenTasks(task.children, level + 1));
             }
         }
@@ -472,6 +484,146 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
     toast({ title: '¡Exportado!', description: 'El cronograma se ha exportado a PDF.'});
   };
 
+  const handleExportGanttPDF = async () => {
+    if (processedTasks.length === 0 || !chartRef.current) return;
+    
+    try {
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+        const margin = { top: 40, right: 40, bottom: 40, left: 20 };
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Title
+        doc.setFontSize(18);
+        doc.text('Cronograma del Proyecto', pageWidth / 2, margin.top, { align: 'center' });
+
+        let yPos = 80;
+        const rowHeight = 20;
+        const barHeight = rowHeight * 0.6;
+        const taskListWidth = 200;
+        const ganttAreaWidth = pageWidth - margin.left - margin.right - taskListWidth;
+
+        const [domainStart, domainEnd] = domain;
+        const totalDays = differenceInDays(new Date(domainEnd), new Date(domainStart));
+
+        const drawTimelineHeader = (startY: number) => {
+            const timelineY = startY;
+            const timelineStartX = margin.left + taskListWidth;
+
+            doc.setFontSize(8);
+            doc.setDrawColor(200);
+            doc.line(timelineStartX, timelineY, timelineStartX + ganttAreaWidth, timelineY);
+
+            const intervalDates = eachDayOfInterval({ start: new Date(domainStart), end: new Date(domainEnd) });
+            intervalDates.forEach(date => {
+                const dayDiff = differenceInDays(date, new Date(domainStart));
+                const x = timelineStartX + (dayDiff / totalDays) * ganttAreaWidth;
+                if (date.getDate() === 1 || date.getDay() === 1) { // Month or week marker
+                    doc.setDrawColor(150);
+                    doc.line(x, timelineY - 5, x, pageHeight - margin.bottom);
+                    if (date.getDate() === 1) {
+                        doc.text(format(date, 'MMM yy', {locale: es}), x + 2, timelineY - 7);
+                    }
+                } else {
+                    doc.setDrawColor(230);
+                    doc.line(x, timelineY, x, pageHeight - margin.bottom);
+                }
+            });
+            return timelineY + 10;
+        };
+        
+        yPos = drawTimelineHeader(margin.top + 40);
+
+        const taskPositions = new Map<string, {x: number, y:number, width: number, page: number}>();
+        
+        processedTasks.forEach((task) => {
+            if (yPos > pageHeight - margin.bottom) {
+                doc.addPage();
+                yPos = margin.top;
+                yPos = drawTimelineHeader(yPos);
+            }
+
+            const taskName = task.name;
+            const textX = margin.left + (task.level * 10);
+            const y = yPos + (rowHeight / 2);
+
+            doc.setFontSize(8);
+
+            if (!task.startDate) { // It's a group header
+                doc.setFont('helvetica', 'bold');
+                doc.text(taskName, textX, y, { baseline: 'middle', maxWidth: taskListWidth - (task.level * 10) - 5 });
+                doc.setFont('helvetica', 'normal');
+            } else {
+                doc.text(taskName, textX, y, { baseline: 'middle', maxWidth: taskListWidth - (task.level * 10) - 5 });
+                
+                const taskStart = new Date(task.startDate!);
+                const taskEnd = new Date(task.endDate || task.startDate!);
+                const isMilestone = differenceInDays(taskEnd, taskStart) <= 0;
+
+                const startDayDiff = Math.max(0, differenceInDays(taskStart, new Date(domainStart)));
+                const durationDays = differenceInDays(taskEnd, taskStart) + 1;
+
+                const barX = margin.left + taskListWidth + (startDayDiff / totalDays) * ganttAreaWidth;
+                const barW = (durationDays / totalDays) * ganttAreaWidth;
+                const barY = yPos + (rowHeight - barHeight) / 2;
+
+                if (isMilestone) {
+                    const milestoneColor = statusMap[task.status].fill;
+                    doc.setFillColor(milestoneColor);
+                    const size = barHeight * 0.8;
+                    doc.rect(barX, barY + size/4, size, size, 'F');
+                } else {
+                    doc.setFillColor(230,230,230); // light grey base
+                    doc.roundedRect(barX, barY, barW, barHeight, 3, 3, 'F');
+                    
+                    const progress = task.status === 'ejecutada' ? 100 : task.progress || 0;
+                    const progressW = barW * (progress/100);
+                    doc.setFillColor(statusMap[task.status].fill);
+                    doc.roundedRect(barX, barY, progressW, barHeight, 3, 3, 'F');
+                }
+                 taskPositions.set(task._id!, {x: barX, y: barY, width: barW, page: doc.internal.getCurrentPageInfo().pageNumber });
+            }
+            yPos += rowHeight;
+        });
+
+        // Draw dependencies across pages if necessary
+        processedTasks.forEach(task => {
+            if(task.dependencies) {
+                task.dependencies.forEach(depId => {
+                    const fromPos = taskPositions.get(depId);
+                    const toPos = taskPositions.get(task._id!);
+
+                    if (fromPos && toPos) {
+                        doc.setPage(fromPos.page); // Start drawing from the 'from' page
+                        const fromX = fromPos.x + fromPos.width;
+                        const fromY = fromPos.y + barHeight / 2;
+                        
+                        if (fromPos.page === toPos.page) {
+                            doc.setPage(toPos.page);
+                            const toX = toPos.x;
+                            const toY = toPos.y + barHeight / 2;
+                            
+                            doc.setDrawColor(0);
+                            doc.setLineWidth(0.5);
+                            doc.line(fromX, fromY, fromX + 5, fromY);
+                            doc.line(fromX + 5, fromY, fromX + 5, toY);
+                            doc.line(fromX + 5, toY, toX, toY);
+                            doc.triangle(toX, toY, toX-4, toY-2, toX-4, toY+2, 'F');
+                        }
+                        // Cross-page dependency lines would be more complex and are omitted for simplicity.
+                    }
+                });
+            }
+        });
+
+        doc.save(`gantt-chart_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    } catch (error) {
+        console.error("Error exporting Gantt chart:", error);
+        toast({ variant: 'destructive', title: 'Error de Exportación', description: 'Hubo un problema al generar el PDF del gráfico.' });
+    }
+  };
+
+
   const chartData = React.useMemo(() => {
     return [...processedTasks]
       .filter(task => task.startDate) 
@@ -515,7 +667,7 @@ export function ScheduleView({ isReadOnly, scheduleType }: { isReadOnly: boolean
 
     return (
         <g>
-            <text x={xPos} y={y} dy={textLines.length > 1 ? 0 : 4} textAnchor="start" fill="#666" fontSize={12}>
+            <text x={xPos} y={y} dy={textLines.length > 1 ? 0 : 4} textAnchor="start" fill="#666" fontSize={12} fontWeight={!task?.startDate ? 'bold' : 'normal'}>
                 {textLines.map((line, index) => (
                     <tspan key={index} x={xPos} dy={index > 0 ? '1.2em' : 0}>{line}</tspan>
                 ))}
@@ -550,8 +702,9 @@ const ganttHeight = processedTasks.length * 50 + 50;
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem onClick={handleExportCSV}>Exportar a CSV</DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleExportPDF}>Exportar a PDF</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportCSV}>Exportar Tabla a CSV</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportPDF}>Exportar Tabla a PDF</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportGanttPDF}>Exportar Gráfico a PDF</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -570,7 +723,7 @@ const ganttHeight = processedTasks.length * 50 + 50;
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
             ) : (
-                <div className="w-full h-full max-h-[600px] overflow-auto">
+                <div className="w-full h-full max-h-[600px] overflow-auto" ref={chartRef}>
                     <ResponsiveContainer width={2000} height={ganttHeight}>
                         <BarChart
                             data={chartData.reverse()}
@@ -1139,7 +1292,7 @@ function BulkUploadDialog({ isOpen, setIsOpen, onTasksUploaded, scheduleType }: 
                             type: scheduleType,
                         };
                     }).filter(item => item.name);
-                    setParsedData(validData);
+                    setParsedData(validData as any);
                 },
                 error: (error) => {
                     toast({ variant: 'destructive', title: 'Error al leer el archivo', description: error.message });
