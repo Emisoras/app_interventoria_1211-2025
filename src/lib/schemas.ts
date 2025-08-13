@@ -55,7 +55,7 @@ export const AdminUpdateUserSchema = z.object({
     cedula: z.string().min(5, 'La cédula es requerida.'),
     telefono: z.string().min(7, 'El teléfono es requerido.'),
     password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').optional().or(z.literal('')),
-    role: z.enum(['admin', 'editor', 'viewer', 'empleado']),
+    role: z.enum(['admin', 'editor', 'viewer', 'empleado', 'tecnico_campo']),
 });
 
 
@@ -152,4 +152,24 @@ export const CampusSchema = z.object({
   name: z.string().min(1, "El nombre es requerido."),
   institutionName: z.string(),
   municipality: z.string().min(1, "El municipio es requerido."),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+  contactName: z.string().optional(),
+  contactPhone: z.string().optional(),
 });
+export type Campus = z.infer<typeof CampusSchema> & { _id: string };
+
+
+// Route Assignment Schemas
+export const RouteSchema = z.object({
+  _id: z.string().optional(),
+  technicianId: z.string(),
+  technicianName: z.string(),
+  date: z.date(),
+  campusIds: z.array(z.string()).min(1, 'Debe seleccionar al menos una sede.'),
+  observations: z.string().optional(),
+  status: z.enum(['pendiente', 'en_curso', 'completada', 'cancelada']).default('pendiente'),
+  createdAt: z.date().optional(),
+  updatedAt: z.date().optional(),
+});
+export type Route = z.infer<typeof RouteSchema>;

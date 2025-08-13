@@ -9,7 +9,7 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { SuspenseWrapper } from '@/components/suspense-wrapper';
+import { Loader2 } from 'lucide-react';
 
 
 export default function ViabilidadEducativaPage() {
@@ -71,16 +71,16 @@ export default function ViabilidadEducativaPage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <SuspenseWrapper>
+        <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
             <ChecklistForm 
                 isViewer={isViewer}
                 checklistType="viabilidad-educativa"
                 formTitle="CHECK DE ESTUDIO DE CAMPO PARA INSTITUCIONES EDUCATIVAS"
             />
-        </SuspenseWrapper>
+        </Suspense>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

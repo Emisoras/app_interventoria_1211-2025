@@ -8,7 +8,6 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { SuspenseWrapper } from '@/components/suspense-wrapper';
 import { ActivityLog } from '@/components/activity-log';
 
 export default function ActivitiesPage() {
@@ -18,16 +17,17 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
-    if (!userId) {
+    const role = localStorage.getItem('userRole');
+
+    if (!userId || (role === 'viewer')) {
       toast({
         variant: 'destructive',
         title: 'Acceso Denegado',
-        description: 'Por favor, inicie sesión para acceder a esta página.',
+        description: 'No tiene permisos para acceder a esta página.',
       });
-      router.push('/login');
+      router.push('/form');
       return;
     }
-    const role = localStorage.getItem('userRole');
     setUserRole(role);
   }, [router, toast]);
 
@@ -43,7 +43,7 @@ export default function ActivitiesPage() {
     router.push('/login');
   };
 
-  const isViewer = userRole === 'viewer';
+  const isReadOnly = userRole === 'empleado';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -70,12 +70,10 @@ export default function ActivitiesPage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <SuspenseWrapper>
-            <ActivityLog isViewer={isViewer} />
-        </SuspenseWrapper>
+        <ActivityLog isViewer={isReadOnly} />
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

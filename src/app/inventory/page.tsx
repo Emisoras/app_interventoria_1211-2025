@@ -3,7 +3,6 @@
 
 import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { InventoryManagement } from '@/components/inventory-management';
-import { SuspenseWrapper } from '@/components/suspense-wrapper';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, LogOut } from 'lucide-react';
@@ -71,12 +70,10 @@ export default function InventoryPage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <SuspenseWrapper>
-            <InventoryManagement isReadOnly={isReadOnly} />
-        </SuspenseWrapper>
+        <InventoryManagement isReadOnly={isReadOnly} />
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

@@ -15,10 +15,9 @@ import SignatureCanvas from 'react-signature-canvas';
 import { z } from 'zod';
 
 import type { ComplianceCheckOutput } from '@/ai/flows/compliance-check';
-import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getChecklistTemplate, type ChecklistQuestion, getOperators, addOperator, updateOperator, deleteOperator, getInstitutions, addInstitution, updateInstitution, deleteInstitution, getCampuses, addCampus, updateCampus, deleteCampus } from '@/app/actions';
+import { getChecklistById, getUserById, runComplianceCheck, saveChecklist, getChecklistTemplate, type ChecklistQuestion, getOperators, addOperator, updateOperator, deleteOperator, getInstitutions, addInstitution, updateInstitution, deleteInstitution, getCampuses, addCampus, updateCampus, deleteCampus, type Campus } from '@/app/actions';
 import type { Operator } from '@/app/actions';
 import type { Institution } from '@/lib/institutions-data';
-import type { Campus } from '@/lib/campus-data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -119,7 +118,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
   const [campuses, setCampuses] = React.useState<Campus[]>([]);
   const [openCampusesPopover, setOpenCampusesPopover] = React.useState(false);
   const [isManageCampusesOpen, setIsManageCampusesOpen] = React.useState(false);
-  const [newCampus, setNewCampus] = React.useState({ name: '', institutionName: '', municipality: ''});
+  const [newCampus, setNewCampus] = React.useState({ name: '', institutionName: '', municipality: '', latitude: '' as string | number, longitude: '' as string | number, contactName: '', contactPhone: '' });
   const [editingCampus, setEditingCampus] = React.useState<Campus | null>(null);
 
   const form = useForm<OperatorFormData>({
@@ -133,7 +132,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
     const conclusionSiteText = checklistType === 'viabilidad-educativa' ? `${formData.institutionName}, ${formData.campusName}` : `la Junta de Internet ${formData.campusName}`;
 
     return {
-      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
+      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. CI-STIC-02177-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
       analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El operador realizo a satisfacción el Estudio de Campo para ${institutionText}${siteText} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
       conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para la ${conclusionSiteText} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.\n• Archivo Anexo ${formData.campusName.replace(/ /g, '_')}.pdf`
     };
@@ -333,10 +332,15 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
   
   const handleAddCampus = async () => {
     if (newCampus.name.trim()) {
-      const result = await addCampus(newCampus);
+        const campusToSave = {
+            ...newCampus,
+            latitude: newCampus.latitude ? parseFloat(String(newCampus.latitude)) : undefined,
+            longitude: newCampus.longitude ? parseFloat(String(newCampus.longitude)) : undefined,
+        };
+      const result = await addCampus(campusToSave);
       if (result.success) {
         setCampuses([...campuses, result.campus]);
-        setNewCampus({ name: '', institutionName: '', municipality: '' });
+        setNewCampus({ name: '', institutionName: '', municipality: '', latitude: '', longitude: '', contactName: '', contactPhone: '' });
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
@@ -354,7 +358,12 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
 
   const handleUpdateCampus = async () => {
     if (editingCampus && editingCampus.name.trim()) {
-      const result = await updateCampus(editingCampus._id, { name: editingCampus.name, institutionName: editingCampus.institutionName, municipality: editingCampus.municipality });
+        const campusToUpdate = {
+            ...editingCampus,
+            latitude: editingCampus.latitude ? parseFloat(String(editingCampus.latitude)) : undefined,
+            longitude: editingCampus.longitude ? parseFloat(String(editingCampus.longitude)) : undefined,
+        };
+      const result = await updateCampus(editingCampus._id, campusToUpdate);
       if (result.success) {
         await fetchDropdownData();
         setEditingCampus(null);
@@ -466,7 +475,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
       doc.setFont('helvetica', 'normal');
       doc.text('Director Técnico', margin, yPos);
       yPos += 5;
-      doc.text('Convenio interadministrativo 1211-2025', margin, yPos);
+      doc.text('Convenio interadministrativo CI-STIC-02177-2025', margin, yPos);
       yPos += 14;
 
       doc.setFontSize(12);
@@ -632,7 +641,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
     let csvContent = "data:text/csv;charset=utf-8,";
     
     csvContent += "IMPLEMENTACIÓN DE INFRAESTRUCTURA TECNOLÓGICA PARA EL FORTALECIMIENTO DE LA CONECTIVIDAD, SERVICIOS TIC Y APROPIACIÓN DIGITAL EN LOS HOGARES,COMUNIDADES DE CONECTIVIDAD E INSTITUCIONES EDUCATIVAS DE LA REGIÓN DEL CATATUMBO Y ÁREA METROPOLITANA DE CÚCUTA DEL DEPARTAMENTO DE NORTE DE SANTANDER.\n";
-    csvContent += "Convenio Interadministrativo 1211-2025\n\n";
+    csvContent += "Convenio Interadministrativo CI-STIC-02177-2025\n\n";
     csvContent += `Operador,${operatorInfo.operatorName}\n`;
     if (checklistType === 'viabilidad-educativa') {
       csvContent += `Institución Educativa,${operatorInfo.institutionName}\n`;
@@ -728,7 +737,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        const subtitle = 'Convenio Interadministrativo 1211-2025';
+        const subtitle = 'Convenio Interadministrativo CI-STIC-02177-2025';
         doc.text(subtitle, pageWidth / 2, yPos, { align: 'center' });
         yPos += 10;
         
@@ -865,7 +874,7 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
           <CardTitle className="text-center text-base font-semibold">
            {formTitle}
           </CardTitle>
-          <CardDescription className="text-center">Convenio Interadministrativo 1211-2025</CardDescription>
+          <CardDescription className="text-center">Convenio Interadministrativo CI-STIC-02177-2025</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -977,7 +986,31 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                 onChange={(e) => setNewCampus({...newCampus, municipality: e.target.value})}
                                 placeholder="Municipio"
                                 className="mb-2"
-                              />
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                        value={newCampus.latitude}
+                                        onChange={(e) => setNewCampus({...newCampus, latitude: e.target.value})}
+                                        placeholder="Latitud"
+                                    />
+                                    <Input
+                                        value={newCampus.longitude}
+                                        onChange={(e) => setNewCampus({...newCampus, longitude: e.target.value})}
+                                        placeholder="Longitud"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                        value={newCampus.contactName}
+                                        onChange={(e) => setNewCampus({...newCampus, contactName: e.target.value})}
+                                        placeholder="Nombre del Contacto"
+                                    />
+                                    <Input
+                                        value={newCampus.contactPhone}
+                                        onChange={(e) => setNewCampus({...newCampus, contactPhone: e.target.value})}
+                                        placeholder="Teléfono del Contacto"
+                                    />
+                                </div>
                               <Button onClick={handleAddCampus}>
                                 <Plus className="mr-2 h-4 w-4" /> Agregar
                               </Button>
@@ -1015,12 +1048,42 @@ export function ChecklistForm({ isViewer, checklistType, formTitle }: ChecklistF
                                           className="h-8"
                                           placeholder="Municipio"
                                       />
+                                      <div className="grid grid-cols-2 gap-2">
+                                         <Input
+                                            value={editingCampus.latitude || ''}
+                                            onChange={(e) => setEditingCampus({ ...editingCampus, latitude: parseFloat(e.target.value) || 0 })}
+                                            placeholder="Latitud"
+                                            className="h-8"
+                                        />
+                                        <Input
+                                            value={editingCampus.longitude || ''}
+                                            onChange={(e) => setEditingCampus({ ...editingCampus, longitude: parseFloat(e.target.value) || 0 })}
+                                            placeholder="Longitud"
+                                            className="h-8"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                         <Input
+                                            value={editingCampus.contactName || ''}
+                                            onChange={(e) => setEditingCampus({ ...editingCampus, contactName: e.target.value })}
+                                            placeholder="Nombre del Contacto"
+                                            className="h-8"
+                                        />
+                                        <Input
+                                            value={editingCampus.contactPhone || ''}
+                                            onChange={(e) => setEditingCampus({ ...editingCampus, contactPhone: e.target.value })}
+                                            placeholder="Teléfono del Contacto"
+                                            className="h-8"
+                                        />
+                                      </div>
                                     </div>
                                   ) : (
                                     <div className="flex-1">
                                         <p className="text-sm font-medium">{campus.name}</p>
                                         <p className="text-xs text-muted-foreground">{campus.institutionName}</p>
                                         <p className="text-xs text-muted-foreground">{campus.municipality}</p>
+                                        {campus.latitude && <p className="text-xs text-muted-foreground">Coords: {campus.latitude}, {campus.longitude}</p>}
+                                        {campus.contactName && <p className="text-xs text-muted-foreground">Contacto: {campus.contactName} - {campus.contactPhone}</p>}
                                     </div>
                                   )}
                                   <div className="flex items-center gap-1">

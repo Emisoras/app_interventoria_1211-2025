@@ -19,6 +19,7 @@ import {
     ScheduleTaskSchema,
     InventoryItemSchema,
     CampusSchema,
+    RouteSchema,
     type SaveChecklistInput,
     type UserLoginInput,
     type UserRegisterInput,
@@ -29,6 +30,8 @@ import {
     type ScheduleTask,
     type InventoryItem,
     type ScheduleType,
+    type Route,
+    type Campus,
 } from '@/lib/schemas';
 
 
@@ -46,7 +49,9 @@ export type {
     ScheduleTaskPriority,
     InventoryItem,
     InventoryItemStatus,
-    ScheduleType
+    ScheduleType,
+    Route,
+    Campus,
 } from '@/lib/schemas';
 
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
@@ -388,7 +393,7 @@ export async function getPendingUsers() {
   }
 }
 
-export async function approveUser(userId: string, role: 'editor' | 'viewer' | 'empleado'): Promise<{ success: boolean; error?: string }> {
+export async function approveUser(userId: string, role: 'editor' | 'viewer' | 'empleado' | 'tecnico_campo'): Promise<{ success: boolean; error?: string }> {
   const client = await getDbClient();
   try {
     await client.connect();
@@ -449,7 +454,7 @@ export async function deleteUserById(userId: string): Promise<{ success: boolean
     }
 }
 
-export async function updateUserRole(userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado'): Promise<{ success: boolean, error?: string }> {
+export async function updateUserRole(userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado' | 'tecnico_campo'): Promise<{ success: boolean, error?: string }> {
     const client = await getDbClient();
     try {
         await client.connect();
@@ -630,14 +635,6 @@ export interface Institution {
     name: string;
 }
 
-export interface Campus {
-    _id: string; // From MongoDB
-    id?: number; // Optional original ID
-    name: string;
-    institutionName: string;
-    municipality: string;
-}
-
 async function seedData<T>(db: any, collectionName: string, initialData: T[], nameField: keyof T) {
   const collection = db.collection(collectionName);
   for (const item of initialData) {
@@ -794,7 +791,7 @@ export async function getCampuses(): Promise<Campus[]> {
   }
 }
 
-export async function addCampus(data: Omit<Campus, '_id' | 'id'>): Promise<{ success: boolean, campus?: any, error?: string }> {
+export async function addCampus(data: Omit<Campus, '_id'>): Promise<{ success: boolean, campus?: any, error?: string }> {
     const validation = CampusSchema.safeParse(data);
     if (!validation.success) return { success: false, error: validation.error.errors[0].message };
     const client = await getDbClient();
@@ -813,7 +810,7 @@ export async function addCampus(data: Omit<Campus, '_id' | 'id'>): Promise<{ suc
     }
 }
 
-export async function updateCampus(id: string, data: Omit<Campus, '_id' | 'id'>): Promise<{ success: boolean, error?: string }> {
+export async function updateCampus(id: string, data: Omit<Campus, '_id'>): Promise<{ success: boolean, error?: string }> {
     const validation = CampusSchema.safeParse(data);
     if (!validation.success) return { success: false, error: validation.error.errors[0].message };
     const client = await getDbClient();
@@ -1194,6 +1191,97 @@ export async function bulkUpdateInventoryItemsStatus(itemIds: string[], destinat
     } catch (e) {
         console.error("Error in bulk update:", e);
         return { success: false, error: "Ocurrió un error en el servidor durante la actualización masiva." };
+    } finally {
+        await client.close();
+    }
+}
+
+// Route Management Actions
+export async function getRoutes(): Promise<Route[]> {
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("routes");
+    const routes = await collection.find({}).sort({ date: -1 }).toArray();
+    return JSON.parse(JSON.stringify(routes));
+  } catch (error) {
+    console.error('Error fetching routes:', error);
+    return [];
+  } finally {
+    await client.close();
+  }
+}
+
+export async function saveRoute(route: Omit<Route, '_id'> & { _id?: string }): Promise<{ success: boolean; route?: any; error?: string }> {
+  const { _id, ...routeData } = route;
+  const validation = RouteSchema.omit({ _id: true, createdAt: true, updatedAt: true }).safeParse(routeData);
+
+  if (!validation.success) {
+    return { success: false, error: validation.error.errors.map(e => e.message).join(', ') };
+  }
+
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("routes");
+
+    if (_id) {
+      // Update
+      const dataToUpdate = { ...validation.data, updatedAt: new Date() };
+      const result = await collection.updateOne({ _id: new ObjectId(_id) }, { $set: dataToUpdate });
+      if (result.matchedCount === 0) {
+        return { success: false, error: 'Ruta no encontrada.' };
+      }
+      return { success: true, route: { ...dataToUpdate, _id } };
+    } else {
+      // Insert
+      const dataToInsert = { ...validation.data, createdAt: new Date(), updatedAt: new Date() };
+      const result = await collection.insertOne(dataToInsert);
+      return { success: true, route: { ...dataToInsert, _id: result.insertedId.toString() } };
+    }
+  } catch (e) {
+    console.error("Error saving route:", e);
+    return { success: false, error: "Error al guardar la ruta." };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function deleteRoute(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!ObjectId.isValid(id)) return { success: false, error: 'ID de ruta inválido.' };
+  
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("routes");
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return { success: false, error: 'Ruta no encontrada.' };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Error deleting route:", e);
+    return { success: false, error: "Error al eliminar la ruta." };
+  } finally {
+    await client.close();
+  }
+}
+
+export async function getTechnicians(): Promise<{ _id: string, username: string }[]> {
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const usersCollection = db.collection("users");
+        // Find all users with the 'tecnico_campo' role
+        const technicians = await usersCollection.find({ role: 'tecnico_campo' }).project({ username: 1 }).toArray();
+        return JSON.parse(JSON.stringify(technicians));
+    } catch (error) {
+        console.error('Error fetching technicians:', error);
+        return [];
     } finally {
         await client.close();
     }

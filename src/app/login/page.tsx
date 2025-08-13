@@ -124,7 +124,7 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
       <footer className="w-full max-w-md mt-8 text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

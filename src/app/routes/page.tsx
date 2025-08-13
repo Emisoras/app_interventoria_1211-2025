@@ -1,8 +1,8 @@
-// src/app/oversight-schedule/page.tsx
+// src/app/routes/page.tsx
 'use client';
 
 import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
-import { ScheduleView } from '@/components/schedule-view';
+import { RoutePlanner } from '@/components/route-planner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, LogOut } from 'lucide-react';
@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-export default function OversightSchedulePage() {
+export default function RoutesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function OversightSchedulePage() {
     router.push('/login');
   };
 
-  const isReadOnly = userRole === 'viewer' || userRole === 'empleado';
+  const canEdit = userRole === 'admin' || userRole === 'editor';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -52,7 +52,7 @@ export default function OversightSchedulePage() {
           <div className="flex items-center gap-4">
             <CheckInterventoriaLogo className="h-8 w-8 text-primary" />
             <h1 className="text-xl md:text-2xl font-bold font-headline text-foreground">
-              Cronograma de Interventoría
+              Gestión de Rutas de Técnicos
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -70,7 +70,7 @@ export default function OversightSchedulePage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <ScheduleView isReadOnly={isReadOnly} scheduleType='cronograma_interventoria' />
+        <RoutePlanner canEdit={canEdit} />
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
         <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>

@@ -121,7 +121,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
     const conclusionSiteText = `la Junta de Internet ${formData.campusName}`;
 
     return {
-      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. 1211-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
+      antecedentes: `Dentro del marco de ejecución del Convenio Interadministrativo No. CI-STIC-02177-2025, y conforme a las funciones asignadas a la interventoría técnica, se realizó la revisión del Estudio de Campo para la ${institutionText}${siteText} con el fin de realizar la aprobación del mismo. Durante esta revisión se identificaron aspectos que requieren análisis técnico.`,
       analisis: `Con base en la revisión documental, se evidenció lo siguiente:\n• El operador realizo a satisfacción el Estudio de Campo para ${institutionText}${siteText} cumpliendo los Ítems 1.7 del Anexo Técnico.`,
       conclusion: `• Se concluye que se aprueba por parte de Interventoría el Estudio de Campo para la ${conclusionSiteText} cumpliendo los Ítems 1.7 del Anexo Técnico con concepto de viabilidad positivo por lo cual se puede proceder con la Fase de Instalación.\n• Archivo Anexo ${formData.campusName.replace(/ /g, '_')}.pdf`
     };
@@ -409,7 +409,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
       doc.setFont('helvetica', 'normal');
       doc.text('Director Técnico', margin, yPos);
       yPos += 5;
-      doc.text('Convenio interadministrativo 1211-2025', margin, yPos);
+      doc.text('Convenio interadministrativo CI-STIC-02177-2025', margin, yPos);
       yPos += 14;
 
       doc.setFontSize(12);
@@ -573,7 +573,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
     let csvContent = "data:text/csv;charset=utf-8,";
     
     csvContent += "IMPLEMENTACIÓN DE INFRAESTRUCTURA TECNOLÓGICA PARA EL FORTALECIMIENTO DE LA CONECTIVIDAD, SERVICIOS TIC Y APROPIACIÓN DIGITAL EN LOS HOGARES,COMUNIDADES DE CONECTIVIDAD E INSTITUCIONES EDUCATIVAS DE LA REGIÓN DEL CATATUMBO Y ÁREA METROPOLITANA DE CÚCUTA DEL DEPARTAMENTO DE NORTE DE SANTANDER.\n";
-    csvContent += "Convenio Interadministrativo 1211-2025\n\n";
+    csvContent += "Convenio Interadministrativo CI-STIC-02177-2025\n\n";
     csvContent += `Operador,${operatorInfo.operatorName}\n`;
     csvContent += `Junta de Internet,${operatorInfo.campusName}\n`;
     csvContent += `Tipo de Sitio,${operatorInfo.siteType}\n`;
@@ -665,7 +665,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        const subtitle = 'Convenio Interadministrativo 1211-2025';
+        const subtitle = 'Convenio Interadministrativo CI-STIC-02177-2025';
         doc.text(subtitle, pageWidth / 2, yPos, { align: 'center' });
         yPos += 10;
         
@@ -794,7 +794,7 @@ export function ChecklistFormInstalacionJunta({ isViewer }: { isViewer: boolean 
           <CardTitle className="text-center text-base font-semibold">
            IMPLEMENTACIÓN DE INFRAESTRUCTURA TECNOLÓGICA PARA EL FORTALECIMIENTO DE LA CONECTIVIDAD, SERVICIOS TIC Y APROPIACIÓN DIGITAL EN LOS HOGARES,COMUNIDADES DE CONECTIVIDAD E INSTITUCIONES EDUCATIVAS DE LA REGIÓN DEL CATATUMBO Y ÁREA METROPOLITANA DE CÚCUTA DEL DEPARTAMENTO DE NORTE DE SANTANDER.
           </CardTitle>
-          <CardDescription className="text-center">Convenio Interadministrativo 1211-2025</CardDescription>
+          <CardDescription className="text-center">Convenio Interadministrativo CI-STIC-02177-2025</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

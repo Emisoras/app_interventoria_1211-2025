@@ -5,7 +5,7 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch, ClipboardCheck } from 'lucide-react';
+import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch, ClipboardCheck, MapPinned } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -46,7 +46,7 @@ export default function FormPage() {
   };
 
   const canEdit = userRole === 'admin' || userRole === 'editor';
-  const isViewerOrEmpleado = userRole === 'viewer' || userRole === 'empleado';
+  const canViewSchedules = userRole === 'admin' || userRole === 'editor' || userRole === 'empleado' || userRole === 'tecnico_campo';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -100,10 +100,10 @@ export default function FormPage() {
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow flex flex-col justify-center items-center">
         <div className="w-full max-w-4xl space-y-8">
-          {(canEdit || isViewerOrEmpleado) && (
+          {canViewSchedules && (
              <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Planificación y Seguimiento</h2>
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <Button asChild size="lg" variant="secondary">
                           <Link href="/schedule" className="h-20 text-lg flex-col md:flex-row">
                               <GanttChartSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
@@ -120,6 +120,12 @@ export default function FormPage() {
                           <Link href="/activities" className="h-20 text-lg flex-col md:flex-row">
                               <CalendarDays className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
                               Actividades Diarias
+                          </Link>
+                      </Button>
+                      <Button asChild size="lg" variant="secondary">
+                          <Link href="/routes" className="h-20 text-lg flex-col md:flex-row">
+                              <MapPinned className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Gestión de Rutas
                           </Link>
                       </Button>
                   </div>
@@ -179,7 +185,7 @@ export default function FormPage() {
         </div>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

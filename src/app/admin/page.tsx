@@ -47,7 +47,7 @@ const adminUpdateUserSchema = z.object({
   cedula: z.string().min(5, 'La cédula es requerida.'),
   telefono: z.string().min(7, 'El teléfono es requerido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').optional().or(z.literal('')),
-  role: z.enum(['admin', 'editor', 'viewer', 'empleado']),
+  role: z.enum(['admin', 'editor', 'viewer', 'empleado', 'tecnico_campo']),
 });
 
 
@@ -59,10 +59,10 @@ type User = {
   telefono: string;
   createdAt: string;
   status: 'pending' | 'approved' | 'blocked';
-  role?: 'editor' | 'viewer' | 'admin' | 'empleado';
+  role?: 'editor' | 'viewer' | 'admin' | 'empleado' | 'tecnico_campo';
 };
 
-type UserWithRoleChange = User & { roleToAssign?: 'editor' | 'viewer' | 'admin' | 'empleado' };
+type UserWithRoleChange = User & { roleToAssign?: 'editor' | 'viewer' | 'admin' | 'empleado' | 'tecnico_campo' };
 
 export default function AdminPage() {
   const { toast } = useToast();
@@ -110,7 +110,7 @@ export default function AdminPage() {
     }
   }, [router, toast, fetchUsers]);
 
-  const handleRoleChange = (userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado') => {
+  const handleRoleChange = (userId: string, role: 'editor' | 'viewer' | 'admin' | 'empleado' | 'tecnico_campo') => {
     setUsers(users.map(u => u._id === userId ? { ...u, roleToAssign: role } : u));
   };
 
@@ -282,6 +282,7 @@ export default function AdminPage() {
                                     user.role === 'admin' ? 'bg-blue-200 text-blue-800' : 
                                     user.role === 'editor' ? 'bg-green-200 text-green-800' :
                                     user.role === 'empleado' ? 'bg-purple-200 text-purple-800' :
+                                    user.role === 'tecnico_campo' ? 'bg-indigo-200 text-indigo-800' :
                                     user.role === 'viewer' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100'
                                 }`}>
                                 {user.status === 'pending' ? 'Pendiente' : 
@@ -430,6 +431,7 @@ export default function AdminPage() {
                                             <SelectItem value="admin">Admin</SelectItem>
                                             <SelectItem value="editor">Editor</SelectItem>
                                             <SelectItem value="empleado">Empleado</SelectItem>
+                                            <SelectItem value="tecnico_campo">Técnico de Campo</SelectItem>
                                             <SelectItem value="viewer">Visualizador</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -449,7 +451,7 @@ export default function AdminPage() {
             </DialogContent>
         </Dialog>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+        <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
         <p>Copyright © 2025. Todos los derechos reservados.</p>
       </footer>
     </div>

@@ -1,3 +1,4 @@
+
 // src/components/activity-log.tsx
 'use client';
 
@@ -297,7 +298,7 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
         doc.setFont('helvetica', 'normal');
         doc.text('Director Técnico', margin, yPos);
         yPos += 5;
-        doc.text('Convenio interadministrativo 1211-2025', margin, yPos);
+        doc.text('Convenio interadministrativo CI-STIC-02177-2025', margin, yPos);
         yPos += 14;
         
         doc.setFontSize(12);
@@ -313,7 +314,7 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
         yPos += (splitProjectTitle.length * 5) + 5;
 
         doc.setFont('helvetica', 'normal');
-        doc.text('Convenio Interadministrativo: 1211-2025', margin, yPos);
+        doc.text('Convenio Interadministrativo: CI-STIC-02177-2025', margin, yPos);
         yPos += 5;
 
         const dates = activitiesToReport.map(a => new Date(a.date));
@@ -332,19 +333,17 @@ export function ActivityLog({ isViewer }: { isViewer: boolean }) {
         doc.text('Introducción', margin, yPos);
         yPos += 6;
         doc.setFont('helvetica', 'normal');
-        const splitIntro = doc.splitTextToSize(introText, contentWidth);
-        doc.text(splitIntro, margin, yPos);
-        yPos += (splitIntro.length * 5) + 10;
         
-        const tableColumn = ["Fecha", "Descripción de la Actividad"];
-        const tableRows: string[][] = activitiesToReport.map(act => [
-            format(new Date(act.date), 'yyyy-MM-dd'),
-            act.description
-        ]);
+        const introLines = doc.splitTextToSize(introText, contentWidth);
+        doc.text(introLines, margin, yPos);
+        yPos += introLines.length * (doc.getLineHeight() * 0.352778) + 10;
 
         (doc as any).autoTable({
-          head: [tableColumn],
-          body: tableRows,
+          head: [["Fecha", "Descripción de la Actividad"]],
+          body: activitiesToReport.map(act => [
+              format(new Date(act.date), 'yyyy-MM-dd'),
+              act.description
+          ]),
           startY: yPos,
           styles: { fontSize: 10 },
           headStyles: { fillColor: [33, 150, 243] },

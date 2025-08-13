@@ -38,7 +38,7 @@ const prompt = ai.definePrompt({
         {{/each}}
 
     **Ejemplo de Salida Deseada (dentro del campo 'introduction'):**
-    "En el marco de la interventoría del Convenio Interadministrativo 1211-2025, el interventor {{{inspectorName}}} ha llevado a cabo una serie de actividades de seguimiento y control durante el periodo reportado. Las labores se centraron en la verificación en campo de los avances de instalación en diversas sedes, el acompañamiento en los estudios de viabilidad técnica y la correspondiente revisión documental para asegurar el cumplimiento de los hitos del proyecto. Estas acciones son fundamentales para garantizar la correcta ejecución de la infraestructura tecnológica y el fortalecimiento de la conectividad en la región."
+    "En el marco de la interventoría del Convenio Interadministrativo CI-STIC-02177-2025, el interventor {{{inspectorName}}} ha llevado a cabo una serie de actividades de seguimiento y control durante el periodo reportado. Las labores se centraron en la verificación en campo de los avances de instalación en diversas sedes, el acompañamiento en los estudios de viabilidad técnica y la correspondiente revisión documental para asegurar el cumplimiento de los hitos del proyecto. Estas acciones son fundamentales para garantizar la correcta ejecución de la infraestructura tecnológica y el fortalecimiento de la conectividad en la región."
 
     **Tu Tarea:**
     Basado en las **Actividades Realizadas** y siguiendo estrictamente las **Instrucciones Clave**, genera el párrafo de introducción para el informe y colócalo en el campo 'introduction' de la salida.

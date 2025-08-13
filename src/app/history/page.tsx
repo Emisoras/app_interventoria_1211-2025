@@ -15,7 +15,6 @@ import { ArrowLeft, Edit, Loader2, LogOut, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
-import { SuspenseWrapper } from '@/components/suspense-wrapper';
 
 
 type ChecklistSummary = {
@@ -255,12 +254,10 @@ export default function HistoryPage() {
                 </div>
             </header>
             <main className="container mx-auto p-4 md:p-8 flex-grow">
-                <SuspenseWrapper>
-                    <HistoryPageContent />
-                </SuspenseWrapper>
+                <HistoryPageContent />
             </main>
             <footer className="py-4 border-t text-center text-muted-foreground text-sm">
-                <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadminsitrativo 1211-2025</p>
+                <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
                 <p>Copyright © 2025. Todos los derechos reservados.</p>
             </footer>
         </div>
