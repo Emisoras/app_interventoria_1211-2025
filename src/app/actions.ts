@@ -69,8 +69,8 @@ export async function runComplianceCheck(input: ComplianceCheckInput): Promise<C
 
 export async function generateActivityReportIntro(input: GenerateReportIntroInput): Promise<string> {
     try {
-        const { introduction } = await generateReportIntro(input);
-        return introduction;
+        const result = await generateReportIntro(input);
+        return result.introduction;
     } catch (error) {
         console.error('Error generating report intro:', error);
         return 'No se pudo generar la introducción para el informe de actividades.';

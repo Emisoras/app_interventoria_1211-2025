@@ -12,7 +12,7 @@ import { GenerateReportIntroInputSchema, GenerateReportIntroOutputSchema } from 
 
 export async function generateReportIntro(input: GenerateReportIntroInput): Promise<GenerateReportIntroOutput> {
   const result = await generateReportIntroFlow(input);
-  return result.introduction;
+  return result;
 }
 
 
