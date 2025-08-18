@@ -5,21 +5,29 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { RoutePlanner } from '@/components/route-planner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { ArrowLeft, LogOut, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import dynamic from 'next/dynamic';
+
+const RouteMap = dynamic(() => import('@/components/route-map').then(mod => mod.RouteMap), {
+  ssr: false,
+  loading: () => <div className="h-96 w-full bg-muted rounded-lg flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-4">Cargando mapa...</p></div>,
+});
+
 
 export default function RoutesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
+    const storedUserId = localStorage.getItem('userId');
     const role = localStorage.getItem('userRole');
 
-    if (!userId) {
+    if (!storedUserId) {
       toast({
         variant: 'destructive',
         title: 'Acceso Denegado',
@@ -29,6 +37,7 @@ export default function RoutesPage() {
       return;
     }
     setUserRole(role);
+    setUserId(storedUserId);
   }, [router, toast]);
 
 
@@ -69,8 +78,11 @@ export default function RoutesPage() {
           </div>
         </div>
       </header>
-      <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <RoutePlanner canEdit={canEdit} />
+      <main className="container mx-auto p-4 md:p-8 flex-grow space-y-8">
+        <Suspense fallback={<div className="h-96 w-full bg-muted rounded-lg flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+          <RouteMap userRole={userRole} userId={userId} />
+        </Suspense>
+        <RoutePlanner canEdit={canEdit} userRole={userRole} userId={userId} />
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
         <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>

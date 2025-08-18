@@ -1,3 +1,4 @@
+
 // src/lib/schemas.ts
 import { z } from 'zod';
 
@@ -161,14 +162,30 @@ export type Campus = z.infer<typeof CampusSchema> & { _id: string };
 
 
 // Route Assignment Schemas
+export const RouteStopStatusSchema = z.enum(['pendiente', 'en_proceso', 'visitada']);
+export type RouteStopStatus = z.infer<typeof RouteStopStatusSchema>;
+
+export const RouteCostSchema = z.object({
+    description: z.string().min(1, "La descripción del costo es requerida."),
+    amount: z.coerce.number().min(0, "El valor debe ser positivo."),
+});
+export type RouteCost = z.infer<typeof RouteCostSchema>;
+
+export const RouteStopSchema = z.object({
+  campusId: z.string(),
+  status: RouteStopStatusSchema.default('pendiente'),
+  costs: z.array(RouteCostSchema).optional(),
+  visitTime: z.coerce.number().min(0, "El tiempo debe ser positivo.").optional().default(90),
+});
+export type RouteStop = z.infer<typeof RouteStopSchema>;
+
 export const RouteSchema = z.object({
   _id: z.string().optional(),
   technicianId: z.string(),
   technicianName: z.string(),
   date: z.date(),
-  campusIds: z.array(z.string()).min(1, 'Debe seleccionar al menos una sede.'),
+  stops: z.array(RouteStopSchema).min(1, 'Debe seleccionar al menos una sede.'),
   observations: z.string().optional(),
-  status: z.enum(['pendiente', 'en_curso', 'completada', 'cancelada']).default('pendiente'),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),
 });

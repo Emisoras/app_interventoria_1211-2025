@@ -20,6 +20,7 @@ import {
     InventoryItemSchema,
     CampusSchema,
     RouteSchema,
+    RouteStopStatusSchema,
     type SaveChecklistInput,
     type UserLoginInput,
     type UserRegisterInput,
@@ -32,6 +33,8 @@ import {
     type ScheduleType,
     type Route,
     type Campus,
+    type RouteStop,
+    type RouteStopStatus,
 } from '@/lib/schemas';
 
 
@@ -52,6 +55,8 @@ export type {
     ScheduleType,
     Route,
     Campus,
+    RouteStop,
+    RouteStopStatus,
 } from '@/lib/schemas';
 
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
@@ -1269,6 +1274,35 @@ export async function deleteRoute(id: string): Promise<{ success: boolean; error
     await client.close();
   }
 }
+
+export async function updateRouteStopStatus(routeId: string, campusId: string, status: RouteStopStatus): Promise<{ success: boolean; error?: string }> {
+    if (!ObjectId.isValid(routeId) || !campusId) {
+        return { success: false, error: 'IDs inválidos.' };
+    }
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("routes");
+
+        const result = await collection.updateOne(
+            { _id: new ObjectId(routeId), "stops.campusId": campusId },
+            { $set: { "stops.$.status": status, updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+            return { success: false, error: 'No se encontró la ruta o la parada en la ruta.' };
+        }
+        return { success: true };
+
+    } catch (e) {
+        console.error("Error updating route stop status:", e);
+        return { success: false, error: "Error al actualizar el estado de la parada." };
+    } finally {
+        await client.close();
+    }
+}
+
 
 export async function getTechnicians(): Promise<{ _id: string, username: string }[]> {
     const client = await getDbClient();
