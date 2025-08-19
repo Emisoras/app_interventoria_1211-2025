@@ -542,10 +542,16 @@ export function RoutePlanner({ canEdit, userRole, userId }: RoutePlannerProps) {
                                 <li key={stop.campusId} className="flex items-start justify-between gap-2 border-b last:border-b-0 py-1">
                                    <div className="flex flex-col">
                                        <span className='font-medium'>{campus?.name || 'Sede desconocida'}</span>
-                                        {campus?.contactName && (
-                                            <div className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3"/>
+                                        {campus?.contactName && campus.contactPhone && (
+                                            <a 
+                                                href={`https://wa.me/57${campus.contactPhone.replace(/\s+/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
+                                            >
+                                                <User className="h-3 w-3"/>
                                                 <span>{campus.contactName} - {campus.contactPhone}</span>
-                                            </div>
+                                            </a>
                                         )}
                                        <div className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />
                                           <span>Tiempo Visita: {stop.visitTime ?? 'N/A'} min</span>
@@ -672,8 +678,16 @@ function StopCard({ index, field, remove, campusMap, control }: StopCardProps) {
                 <div className="flex flex-col">
                     <p className="font-medium">{campus?.name || 'Sede desconocida'}</p>
                     <p className="text-xs text-muted-foreground">{campus?.municipality}</p>
-                     {campus?.contactName && (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3"/>{campus.contactName} - {campus.contactPhone}</p>
+                     {campus?.contactName && campus.contactPhone && (
+                        <a 
+                            href={`https://wa.me/57${campus.contactPhone.replace(/\s+/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-muted-foreground hover:text-primary hover:underline flex items-center gap-1"
+                        >
+                           <User className="h-3 w-3"/>
+                           <span>{campus.contactName} - {campus.contactPhone}</span>
+                        </a>
                     )}
                 </div>
             </div>
