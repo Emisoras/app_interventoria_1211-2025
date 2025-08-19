@@ -21,6 +21,7 @@ import {
     CampusSchema,
     RouteSchema,
     RouteStopStatusSchema,
+    ServiceMonitoringReportSchema,
     type SaveChecklistInput,
     type UserLoginInput,
     type UserRegisterInput,
@@ -35,6 +36,7 @@ import {
     type Campus,
     type RouteStop,
     type RouteStopStatus,
+    type ServiceMonitoringReport,
 } from '@/lib/schemas';
 
 
@@ -57,6 +59,7 @@ export type {
     Campus,
     RouteStop,
     RouteStopStatus,
+    ServiceMonitoringReport,
 } from '@/lib/schemas';
 
 import { checklistInstitucionEducativaData, checklistInstalacionInstitucionEducativaData, checklistJuntaInternetData, checklistInstalacionJuntaInternetData } from '@/lib/checklist-data';
@@ -1316,6 +1319,73 @@ export async function getTechnicians(): Promise<{ _id: string, username: string 
     } catch (error) {
         console.error('Error fetching technicians:', error);
         return [];
+    } finally {
+        await client.close();
+    }
+}
+
+// Service Monitoring Actions
+export async function getServiceMonitoringReports(): Promise<ServiceMonitoringReport[]> {
+  const client = await getDbClient();
+  try {
+    await client.connect();
+    const db = client.db("instacheck");
+    const collection = db.collection("service_monitoring");
+    const reports = await collection.find({}).sort({ reportDate: -1 }).toArray();
+    return JSON.parse(JSON.stringify(reports));
+  } catch (error) {
+    console.error('Error fetching service monitoring reports:', error);
+    return [];
+  } finally {
+    await client.close();
+  }
+}
+
+export async function saveServiceMonitoringReport(report: Omit<ServiceMonitoringReport, '_id' | 'createdAt' | 'updatedAt'> & { _id?: string }): Promise<{ success: boolean, report?: any, error?: string }> {
+    const { _id, ...reportData } = report;
+    const validation = ServiceMonitoringReportSchema.omit({ _id: true, createdAt: true, updatedAt: true }).safeParse(reportData);
+    if (!validation.success) {
+        return { success: false, error: validation.error.errors.map(e => e.message).join(', ') };
+    }
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("service_monitoring");
+
+        if (_id) {
+            // Update
+            const dataToUpdate = { ...validation.data, updatedAt: new Date() };
+            const result = await collection.updateOne({ _id: new ObjectId(_id) }, { $set: dataToUpdate });
+            if (result.matchedCount === 0) return { success: false, error: 'Reporte no encontrado.' };
+            return { success: true, report: { ...dataToUpdate, _id } };
+        } else {
+            // Insert
+            const dataToInsert = { ...validation.data, createdAt: new Date(), updatedAt: new Date() };
+            const result = await collection.insertOne(dataToInsert);
+            return { success: true, report: { ...dataToInsert, _id: result.insertedId.toString() } };
+        }
+    } catch (e) {
+        console.error("Error saving service monitoring report:", e);
+        return { success: false, error: "Error al guardar el reporte de seguimiento." };
+    } finally {
+        await client.close();
+    }
+}
+
+export async function deleteServiceMonitoringReport(id: string): Promise<{ success: boolean, error?: string }> {
+    if (!ObjectId.isValid(id)) return { success: false, error: 'ID de reporte inválido.' };
+    const client = await getDbClient();
+    try {
+        await client.connect();
+        const db = client.db("instacheck");
+        const collection = db.collection("service_monitoring");
+        const result = await collection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) return { success: false, error: 'Reporte no encontrado.' };
+        return { success: true };
+    } catch (e) {
+        console.error("Error deleting service monitoring report:", e);
+        return { success: false, error: "Error al eliminar el reporte de seguimiento." };
     } finally {
         await client.close();
     }

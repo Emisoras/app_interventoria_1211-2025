@@ -5,7 +5,7 @@ import { CheckInterventoriaLogo } from '@/components/check-interventoria-logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch, ClipboardCheck, MapPinned } from 'lucide-react';
+import { BookUser, CheckSquare, History, LogOut, UserCircle, Wrench, CalendarDays, GanttChartSquare, PackageSearch, ClipboardCheck, MapPinned, HeartPulse } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -103,7 +103,7 @@ export default function FormPage() {
           {canViewSchedules && (
              <div>
                   <h2 className="text-xl font-semibold mb-4 text-center">Planificación y Seguimiento</h2>
-                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                       <Button asChild size="lg" variant="secondary">
                           <Link href="/schedule" className="h-20 text-lg flex-col md:flex-row">
                               <GanttChartSquare className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
@@ -126,6 +126,12 @@ export default function FormPage() {
                           <Link href="/routes" className="h-20 text-lg flex-col md:flex-row">
                               <MapPinned className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
                               Gestión de Rutas
+                          </Link>
+                      </Button>
+                       <Button asChild size="lg" variant="secondary">
+                          <Link href="/monitoring" className="h-20 text-lg flex-col md:flex-row">
+                              <HeartPulse className="mr-0 mb-2 md:mb-0 md:mr-3 h-6 w-6" />
+                              Seguimiento de Servicio
                           </Link>
                       </Button>
                   </div>

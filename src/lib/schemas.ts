@@ -1,4 +1,3 @@
-
 // src/lib/schemas.ts
 import { z } from 'zod';
 
@@ -190,3 +189,35 @@ export const RouteSchema = z.object({
   updatedAt: z.date().optional(),
 });
 export type Route = z.infer<typeof RouteSchema>;
+
+// Service Monitoring Schemas
+export const ServiceMonitoringReportSchema = z.object({
+    _id: z.string().optional(),
+    campusId: z.string().min(1, "Debe seleccionar una sede."),
+    campusName: z.string(),
+    reportDate: z.date(),
+    reporterId: z.string(),
+    reporterName: z.string(),
+    installationStatus: z.enum(['no_iniciada', 'en_progreso', 'finalizada', 'con_problemas']),
+    serviceStatus: z.enum(['operativo', 'con_problemas', 'inoperativo', 'no_iniciada']),
+    observations: z.string().min(1, "Las observaciones generales son requeridas."),
+    
+    // Checklist fields
+    hasComputers: z.enum(['si', 'no']).optional(),
+    goodComputers: z.coerce.number().optional(),
+    badComputers: z.coerce.number().optional(),
+    hasComputersObservation: z.string().optional(),
+
+    wifiPasswordGiven: z.enum(['si', 'no']).optional(),
+    wifiPasswordGivenObservation: z.string().optional(),
+
+    installerAttention: z.enum(['excelente', 'buena', 'mala']).optional(),
+    installerAttentionObservation: z.string().optional(),
+
+    serviceExperience: z.enum(['excelente', 'buena', 'mala']).optional(),
+    serviceExperienceObservation: z.string().optional(),
+    
+    createdAt: z.date().optional(),
+    updatedAt: z.date().optional(),
+});
+export type ServiceMonitoringReport = z.infer<typeof ServiceMonitoringReportSchema>;
