@@ -8,6 +8,7 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { SuspenseWrapper } from '@/components/suspense-wrapper';
 import { ActivityLog } from '@/components/activity-log';
 
 export default function ActivitiesPage() {
@@ -43,7 +44,7 @@ export default function ActivitiesPage() {
     router.push('/login');
   };
 
-  const isReadOnly = userRole === 'empleado';
+  const isReadOnly = userRole === 'viewer';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -70,7 +71,9 @@ export default function ActivitiesPage() {
         </div>
       </header>
       <main className="container mx-auto p-4 md:p-8 flex-grow">
-        <ActivityLog isViewer={isReadOnly} />
+        <SuspenseWrapper>
+            <ActivityLog isViewer={isReadOnly} />
+        </SuspenseWrapper>
       </main>
       <footer className="py-4 border-t text-center text-muted-foreground text-sm">
         <p>Creado por C & J Soluciones de Ingeniería para Interventoria Convenio Interadministrativo CI-STIC-02177-2025</p>
