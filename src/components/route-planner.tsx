@@ -188,11 +188,12 @@ export function RoutePlanner({ canEdit, userRole, userId }: RoutePlannerProps) {
 
   const handleOpenGoogleMaps = (route: Route) => {
     const validCampuses = (route.stops || [])
+      .filter(stop => stop.status !== 'visitada')
       .map(stop => campusMap.get(stop.campusId))
       .filter((c): c is Campus => !!(c && c.latitude && c.longitude));
   
     if (validCampuses.length === 0) {
-      toast({ variant: 'destructive', title: 'Datos insuficientes', description: 'Ninguna de las sedes en esta ruta tiene coordenadas válidas.' });
+      toast({ variant: 'destructive', title: 'Datos insuficientes', description: 'Ninguna de las sedes pendientes en esta ruta tiene coordenadas válidas.' });
       return;
     }
   
